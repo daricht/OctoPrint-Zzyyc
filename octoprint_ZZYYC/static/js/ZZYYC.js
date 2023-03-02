@@ -74,7 +74,6 @@ $(function () {
             self.setAndSendGcode(`G38.3 Z-${5 * parseInt(self.input_lift_z())} F${parseInt(self.input_feedrate_probe()) + parseInt(self.counter)}`);
             self.counter++;
             return new Promise(resolve => {
-
                 function checkProbeResult() {
                     const output = self.terminal.displayedLines();
                     for (let i = output.length - 1; i >= 0; i--) {
@@ -92,7 +91,7 @@ $(function () {
                                 }
                             }
                         }
-                        if (line.includes("Recv: X:")) {
+                        if (line.includes("Recv: X:") || line.includes("Recv: ok X:")) {
                             const x = parseFloat(line.match(/X:(-?\d+\.\d+)/)[1]);
                             const y = parseFloat(line.match(/Y:(-?\d+\.\d+)/)[1]);
                             const z = parseFloat(line.match(/Z:(-?\d+\.\d+)/)[1]);
