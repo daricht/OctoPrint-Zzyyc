@@ -78,7 +78,7 @@ $(function () {
                     const output = self.terminal.displayedLines();
                     for (let i = output.length - 1; i >= 0; i--) {
                         const line = output[i].line;
-                        console.log("DoProbe_current line: "+line);
+                        // console.log("DoProbe_current line: "+line);
                         if (line.includes("Send: G38.3")) {
                             if (line.includes("F")) {
                                 if (self.lastCounterRecvd == parseFloat(line.match(/F(\d+)/)[1]) - parseFloat(self.input_feedrate_probe())) {
@@ -131,20 +131,23 @@ $(function () {
 
         self.moveOnGrid = async function (x, y) {
             // Move to next position
-            if (self.current_x === x && self.current_y === y) {
-                console.log(`Already at position x:${x}, y:${y}`);
-                return;
+            while (self.current_x !== x || self.current_y !== y) {
+                console.log(`Moving up to Z:${parseInt(self.input_lift_z())}`);
+                await self.setAndSendGcode(`G0 Z${parseInt(self.input_lift_z())}`);
+                console.log(`Moving to position x:${x}, y:${y}, F:${parseInt(self.input_feedrate_probe()) + parseInt(self.counter)}`);
+                await self.setAndSendGcode(`G38.3 X${x} Y${y} F${parseInt(self.input_feedrate_probe()) + parseInt(self.counter)}`);
+                self.counter++;
+                var xy_return= await waitForPosition();
+                if (xy_return.x !== x || xy_return.y !== y) {
+                    console.log("XY not reached, restarting moveOnGrid");
+                } else {
+                    self.current_x = x;
+                    self.current_y = y;
+                    console.log(`Reached position x:${x}, y:${y}`);
+                    break;
+                }
             }
-
-            console.log(`Moving up to Z:${parseInt(self.input_lift_z())}`);
-            await self.setAndSendGcode(`G0 Z${parseInt(self.input_lift_z())}`);
-            console.log(`Moving to position x:${x}, y:${y}, F:${parseInt(self.input_feedrate_probe()) + parseInt(self.counter)}`);
-            await self.setAndSendGcode(`G38.3 X${x} Y${y} F${parseInt(self.input_feedrate_probe()) + parseInt(self.counter)}`);
-            self.counter++;
-            var xy_return= await waitForPosition();
-            self.current_x = x;
-            self.current_y = y;
-            console.log(`Reached position x:${x}, y:${y}`);
+            console.log(`Already at position x:${x}, y:${y}`);
         }
 
         self.lowerZ = function () {
@@ -206,7 +209,6 @@ $(function () {
                     }
                     let okReceivedLineIndex = -1;
                     for (let i = originalLineIndex; i < output.length; i++) {
-                        // line.includes("Recv: X:") || line.includes("Recv: ok X:"
                         if (output[i].line.includes("ok")) {
                             okReceivedLineIndex = i;
                             break;
