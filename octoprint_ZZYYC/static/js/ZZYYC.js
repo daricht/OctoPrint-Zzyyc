@@ -5,6 +5,8 @@ $(function () {
         self.terminal = parameters[1];
         self.settings = parameters[2];
 
+        self.isCalculating = ko.observable(false);
+
         self.input_size_x = ko.observable("3");
         self.input_size_y = ko.observable("3");
         self.input_max_z = ko.observable("10");
@@ -22,6 +24,9 @@ $(function () {
         self.target_x = -1;
         self.target_y = -1;
         self.target_z = -1;
+
+        //pointcloud variable to store the points after each probe hit
+        self.PointCloud = [];
 
         self.moveOngoing = false; // this is set to true when a move Gcode is sent to the printer and set to false after each M114 response that is captured
 
@@ -55,7 +60,6 @@ $(function () {
                             const x = parseFloat(line.match(/X:(-?\d+\.\d+)/)[1]);
                             const y = parseFloat(line.match(/Y:(-?\d+\.\d+)/)[1]);
                             const z = parseFloat(line.match(/Z:(-?\d+\.\d+)/)[1]);
-                            
                             resolve({ x, y, z });
                             return;
                         }
@@ -75,22 +79,28 @@ $(function () {
             self.counter++;
             return new Promise(resolve => {
                 function checkProbeResult() {
+
                     const output = self.terminal.displayedLines();
                     for (let i = output.length - 1; i >= 0; i--) {
                         const line = output[i].line;
-                        // console.log("DoProbe_current line: "+line);
-                        if (line.includes("Send: G38.3")) {
+                        if (line.includes("Send: G38.3 Z")) {
                             if (line.includes("F")) {
-                                if (self.lastCounterRecvd == parseFloat(line.match(/F(\d+)/)[1]) - parseFloat(self.input_feedrate_probe())) {
+                                counterrcvd=parseFloat(line.match(/F(\d+)/)[1]) - parseFloat(self.input_feedrate_probe())
+                                if (self.lastCounterRecvd == counterrcvd) {
                                     setTimeout(checkProbeResult, 100);
                                     return;
-                                } else {
+                                } else { // if the counter is different, the probe will wait and try again
                                     self.lastCounterRecvd = parseFloat(line.match(/F(\d+)/)[1]) - parseFloat(self.input_feedrate_probe());
                                     setTimeout(checkProbeResult, 100);
                                     return;
                                 }
                             }
                         }
+                        if (self.lastCounterRecvd != self.counter-1) {
+                            setTimeout(checkProbeResult, 100);
+                            return;
+                        }
+
                         if (line.includes("Recv: X:") || line.includes("Recv: ok X:")) {
                             const x = parseFloat(line.match(/X:(-?\d+\.\d+)/)[1]);
                             const y = parseFloat(line.match(/Y:(-?\d+\.\d+)/)[1]);
@@ -107,6 +117,8 @@ $(function () {
 
         self.trace = async function () {
             // Validate input values
+            self.isCalculating(true);
+            self.PointCloud = [];
             const maxZ = parseInt(self.input_max_z());
             const liftZ = parseInt(self.input_lift_z());
             if (maxZ <= liftZ) {
@@ -121,25 +133,31 @@ $(function () {
                     await self.moveOnGrid(x, y);
 
                     // Do probe
-                    await doProbe();
+                    var last_hit = await doProbe();
+                    self.PointCloud.push(last_hit);
                 }
 
                 // Move to next line
                 self.setAndSendGcode(`G0 Z${maxZ}`);
+                self.setAndSendGcode(`G0 X0 Y${y + parseInt(self.input_stepsize_y())}`);
             }
+            self.downloadPointCloud(self.PointCloud);
+            self.isCalculating(false);
         }
 
         self.moveOnGrid = async function (x, y) {
             // Move to next position
+            tries = 0;
             while (self.current_x !== x || self.current_y !== y) {
-                console.log(`Moving up to Z:${parseInt(self.input_lift_z())}`);
-                await self.setAndSendGcode(`G0 Z${parseInt(self.input_lift_z())}`);
+                console.log(`Moving up to Z:${parseFloat(self.input_lift_z()) + tries * parseFloat(self.input_lift_z())}`);
+                await self.setAndSendGcode(`G0 Z${parseFloat(self.input_lift_z()) + tries * parseFloat(self.input_lift_z())}`);
                 console.log(`Moving to position x:${x}, y:${y}, F:${parseInt(self.input_feedrate_probe()) + parseInt(self.counter)}`);
                 await self.setAndSendGcode(`G38.3 X${x} Y${y} F${parseInt(self.input_feedrate_probe()) + parseInt(self.counter)}`);
                 self.counter++;
-                var xy_return= await waitForPosition();
+                var xy_return = await waitForPosition();
                 if (xy_return.x !== x || xy_return.y !== y) {
-                    console.log("XY not reached, restarting moveOnGrid");
+                    console.log(`XYZ: ${xy_return.x}, ${xy_return.y}, ${xy_return.z} not reached, restarting moveOnGrid, tries: ${tries}`);
+                    tries++;
                 } else {
                     self.current_x = x;
                     self.current_y = y;
@@ -159,8 +177,8 @@ $(function () {
             self.setAndSendGcode("G92 Z0 ;set Zero");
         }
 
-        self.stopPolling = function () {
-            // clearInterval(self.checkPositionInterval);
+        self.GoXYZero = function () {
+            self.setAndSendGcode("G0 X0 Y0");            
         }
 
         self.suppressTempMsg = function () {
@@ -225,6 +243,21 @@ $(function () {
         }
 
 
+        self.downloadPointCloud = function (pointCloud) {
+            // Convert the point cloud array to a string
+            const pointCloudString = JSON.stringify(pointCloud);
+
+            // Create a Blob with the string data
+            const blob = new Blob([pointCloudString], { type: 'application/json' });
+
+            // Create a download link
+            const downloadLink = document.createElement('a');
+            downloadLink.href = URL.createObjectURL(blob);
+            downloadLink.download = 'pointCloud.json';
+
+            // Click the download link to initiate the download
+            downloadLink.click();
+        }
 
     }
     /* view model class, parameters for constructor, container to bind to
