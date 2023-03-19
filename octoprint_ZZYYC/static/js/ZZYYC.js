@@ -32,31 +32,39 @@ $(function () {
 
         self.checkPositionInterval = 0; //the interval is saved here so it can be stopped later
 
-        self.counter = 0;
+        self.lastCounterSent = 0;
         self.lastCounterRecvd = -1;
 
         // todo: add validation for the input values, that can be skipped with an ok button. for example max z should be bigger that lift z
 
         function waitForPosition() {
             console.log("##waitForPosition");
-            // fix this whole function doesnt really run async the whole gcode is generated at once which sucks
             return new Promise(resolve => {
-                function getPosition(retries = 100) {
-                    console.log("##getPosition");
+                function getPosition() {
                     const output = self.terminal.displayedLines();
-                    for (let i = output.length - 1; i >= 0; i--) {
+                    for (let i = output.length - 1; i >= output.length-25; i--) {
                         const line = output[i].line;
                         if (line.includes("Send: G38.3")) {
                             if (line.includes("F")) {
-                                if (self.lastCounterRecvd == parseFloat(line.match(/F(\d+)/)[1]) - parseFloat(self.input_feedrate_probe())) {
-                                    setTimeout(checkProbeResult, 100);
-                                } else {
-                                    self.lastCounterRecvd = parseFloat(line.match(/F(\d+)/)[1]) - parseFloat(self.input_feedrate_probe());
+                                counterrcvd=parseFloat(line.match(/F(\d+)/)[1]) - parseFloat(self.input_feedrate_probe())
+                                if (self.lastCounterRecvd == counterrcvd) {
+                                    setTimeout(getPosition, 100);
+                                    self.setAndSendGcode(`M114`);
+                                    return;
+                                } else { // if the counter is different, the probe will wait and try again
+                                    self.lastCounterRecvd = counterrcvd;
+                                    setTimeout(getPosition, 100);
+                                    return;
                                 }
                             }
                         }
+
                         // depending on the printer the answer is "Recv: X:" or "Recv: ok X:"
                         if (line.includes("Recv: X:") || line.includes("Recv: ok X:")) {
+                            // if (self.lastCounterRecvd < self.lastCounterSent) { 
+                            // setTimeout(getPosition, 100);
+                            //     return;
+                            // }
                             const x = parseFloat(line.match(/X:(-?\d+\.\d+)/)[1]);
                             const y = parseFloat(line.match(/Y:(-?\d+\.\d+)/)[1]);
                             const z = parseFloat(line.match(/Z:(-?\d+\.\d+)/)[1]);
@@ -64,58 +72,16 @@ $(function () {
                             return;
                         }
                     }
-                    if (retries <= 0) {
-                        setTimeout(getPosition, 100, retries--);
-                    }
+                        setTimeout(getPosition, 100);
                 }
                 getPosition();
             });
         }
 
-        // Create a promise that resolves when the probe is done
-        function doProbe() {
-            console.log("##doProbe")
-            self.setAndSendGcode(`G38.3 Z-${5 * parseInt(self.input_lift_z())} F${parseInt(self.input_feedrate_probe()) + parseInt(self.counter)}`);
-            self.counter++;
-            return new Promise(resolve => {
-                function checkProbeResult() {
-
-                    const output = self.terminal.displayedLines();
-                    for (let i = output.length - 1; i >= 0; i--) {
-                        const line = output[i].line;
-                        if (line.includes("Send: G38.3 Z")) {
-                            if (line.includes("F")) {
-                                counterrcvd=parseFloat(line.match(/F(\d+)/)[1]) - parseFloat(self.input_feedrate_probe())
-                                if (self.lastCounterRecvd == counterrcvd) {
-                                    setTimeout(checkProbeResult, 100);
-                                    return;
-                                } else { // if the counter is different, the probe will wait and try again
-                                    self.lastCounterRecvd = parseFloat(line.match(/F(\d+)/)[1]) - parseFloat(self.input_feedrate_probe());
-                                    setTimeout(checkProbeResult, 100);
-                                    return;
-                                }
-                            }
-                        }
-                        if (self.lastCounterRecvd != self.counter-1) {
-                            setTimeout(checkProbeResult, 100);
-                            return;
-                        }
-
-                        if (line.includes("Recv: X:") || line.includes("Recv: ok X:")) {
-                            const x = parseFloat(line.match(/X:(-?\d+\.\d+)/)[1]);
-                            const y = parseFloat(line.match(/Y:(-?\d+\.\d+)/)[1]);
-                            const z = parseFloat(line.match(/Z:(-?\d+\.\d+)/)[1]);
-                            resolve({ x, y, z });
-                            return;
-                        }
-                    }
-                    setTimeout(checkProbeResult, 100);
-                }
-                checkProbeResult();
-            });
-        }
-
         self.trace = async function () {
+            console.log("##trace");
+            self.lastCounterSent = 0;
+            self.lastCounterRecvd = -1;
             // Validate input values
             self.isCalculating(true);
             self.PointCloud = [];
@@ -133,7 +99,10 @@ $(function () {
                     await self.moveOnGrid(x, y);
 
                     // Do probe
-                    var last_hit = await doProbe();
+                    self.lastCounterSent++;
+                    self.setAndSendGcode(`G38.3 Z-${5 * parseInt(self.input_lift_z())} F${parseInt(self.input_feedrate_probe()) + parseInt(self.lastCounterSent)}`);
+                    // nextCommand = `G38.3 Z-${5 * parseInt(self.input_lift_z())} F${parseInt(self.input_feedrate_probe()) + parseInt(self.lastCounterSent)}`
+                    var last_hit = await waitForPosition();
                     self.PointCloud.push(last_hit);
                 }
 
@@ -146,14 +115,16 @@ $(function () {
         }
 
         self.moveOnGrid = async function (x, y) {
+            console.log("##moveOnGrid");
             // Move to next position
             tries = 0;
             while (self.current_x !== x || self.current_y !== y) {
+                self.lastCounterSent++;
                 console.log(`Moving up to Z:${parseFloat(self.input_lift_z()) + tries * parseFloat(self.input_lift_z())}`);
                 await self.setAndSendGcode(`G0 Z${parseFloat(self.input_lift_z()) + tries * parseFloat(self.input_lift_z())}`);
-                console.log(`Moving to position x:${x}, y:${y}, F:${parseInt(self.input_feedrate_probe()) + parseInt(self.counter)}`);
-                await self.setAndSendGcode(`G38.3 X${x} Y${y} F${parseInt(self.input_feedrate_probe()) + parseInt(self.counter)}`);
-                self.counter++;
+                console.log(`Moving to position x:${x}, y:${y}, F:${parseInt(self.input_feedrate_probe()) + parseInt(self.lastCounterSent)}`);
+                await self.setAndSendGcode(`G38.3 X${x} Y${y} F${parseInt(self.input_feedrate_probe()) + parseInt(self.lastCounterSent)}`);
+
                 var xy_return = await waitForPosition();
                 if (xy_return.x !== x || xy_return.y !== y) {
                     console.log(`XYZ: ${xy_return.x}, ${xy_return.y}, ${xy_return.z} not reached, restarting moveOnGrid, tries: ${tries}`);
@@ -187,53 +158,42 @@ $(function () {
             console.log("//suppressTempMsg")
         }
 
-        // self.setAndSendGcode = function (code) {
-        //     self.terminal.command(code);
-        //     self.terminal.sendCommand();
-        //     self.terminal.command("M114");
-        //     self.terminal.sendCommand();
-        //     return new Promise(resolve => {
-        //         function checkResponse() {
-        //             const output = self.terminal.displayedLines();
-        //             const lastLine = output[output.length - 1].line;
-        //             if (lastLine.includes("ok")) {
-        //                 resolve();
-        //             } else {
-        //                 setTimeout(checkResponse, 100);
-        //             }
-        //         }
-        //         checkResponse();
-        //     });
-        // }
-
         self.setAndSendGcode = function (code) {
+            console.log(`##setAndSendGcode: ${code}`);
+            // remove gcode comments including the single preceding space
+            code = code.replace(/;.*$/, "").replace(/\s$/, "");
             self.terminal.command(code);
             self.terminal.sendCommand();
             self.terminal.command("M114");
             self.terminal.sendCommand();
+
+
             return new Promise(resolve => {
                 function checkResponse() {
                     const output = self.terminal.displayedLines();
                     let originalLineIndex = -1;
                     for (let i = output.length - 1; i >= 0; i--) {
-                        if (output[i].line.includes(code)) {
+                        if (output[i].line.includes(code)) { //find original command
                             originalLineIndex = i;
                             break;
                         }
                     }
-                    if (originalLineIndex === -1) {
+                    if (originalLineIndex === -1) { //if not found, wait and try again
                         setTimeout(checkResponse, 100);
+                        console.log("originalLineIndex === -1 -> command was not found in the terminal output, will wait and try again");
                         return;
                     }
                     let okReceivedLineIndex = -1;
-                    for (let i = originalLineIndex; i < output.length; i++) {
-                        if (output[i].line.includes("ok")) {
+                    for (let i = originalLineIndex; i < output.length; i++) { //find ok response to original command
+                        if (output[i].line.includes("Recv: ok")) {
                             okReceivedLineIndex = i;
+                            console.log("ok Received LineIndex: " + okReceivedLineIndex);
                             break;
                         }
                     }
                     if (okReceivedLineIndex === -1) {
                         setTimeout(checkResponse, 100);
+                        console.log("okReceivedLineIndex === -1 -> ok was not received, will wait and try again");
                         return;
                     }
                     resolve();
