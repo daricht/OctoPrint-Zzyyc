@@ -8,10 +8,10 @@
     <input type="text" id="size_y" name="size_y" data-bind="value: input_size_y, disable: isCalculating">
     <br>
     <label for="max_z">Safety Z-Height:</label>
-    <input type="text" id="max_z" name="max_z" data-bind="value: input_max_z, disable: isCalculating" title="Height for moving across the platform, for example when moving from the end of one row in x to the start of the next, during the y change.">
-    <br>
+    <input type="text" id="max_z" name="max_z" data-bind="value: input_max_z, disable: isCalculating" title="Set this to the highest point on your Buildplate. Height for moving across the platform, for example when moving from the end of one row in x to the start of the next, during the y change.">
+    {# <br>
     <label for="feedrate_probe">Probing Feedrate:</label>
-    <input type="text" id="feedrate_probe" name="feedrate_probe" data-bind="value: input_feedrate_probe, disable: isCalculating" title="The speed the probe will move at when looking for a target.">
+    <input type="text" id="feedrate_probe" name="feedrate_probe" data-bind="value: input_feedrate_probe, disable: isCalculating" title="The speed the probe will move at when looking for a target."> #}
 
 </div>
 <div style="float: right; padding:30px;">
@@ -24,13 +24,13 @@
     <label for="lift_z">Z Lift:</label>
     <input type="text" id="lift_z" name="lift_z" data-bind="value: input_lift_z, disable: isCalculating" title="height for jump up in z height before making a step.">
     <br>
-    <label for="feedrate_move">Moving Feedrate:</label>
+    {# <label for="feedrate_move">Moving Feedrate:</label>
     <input type="text" id="feedrate_move" name="feedrate_move" data-bind="value: input_feedrate_move, disable: isCalculating" title="The speed the probe will move at when moving between points.">
-    <br>
+    <br> #}
     {# self.input_feedrate_move = ko.observable("300");
         self.input_wait_time  #}
     <label for="wait_time">Wait Time:</label>
-    <input type="text" id="wait_time" name="wait_time" data-bind="value: input_wait_time, disable: isCalculating" title="The time to wait for a response from the printer in seconds.">
+    <input type="text" id="wait_time" name="wait_time" data-bind="value: input_wait_time, disable: isCalculating" title="Time of your longest move plus some, be generous: The time to wait for a response from the printer in seconds.">
 
 </div>
 <br style="clear: both;">

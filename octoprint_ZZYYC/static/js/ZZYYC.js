@@ -9,13 +9,13 @@ $(function () {
 
         self.input_size_x = ko.observable("3");
         self.input_size_y = ko.observable("3");
-        self.input_max_z = ko.observable("10");
+        self.input_max_z = ko.observable("30");
         self.input_stepsize_x = ko.observable("1");
         self.input_stepsize_y = ko.observable("1");
-        self.input_lift_z = ko.observable("2");
-        self.input_feedrate_probe = ko.observable("300"); // feedrate for probing in mm/min
-        self.input_feedrate_move = ko.observable("300");
-        self.input_wait_time = ko.observable("10"); // time to wait for a response from the printer in seconds
+        self.input_lift_z = ko.observable("1");
+        self.input_feedrate_probe = 300; // feedrate for probing in mm/min but this is usually overwritten by the maschines so here its just used for counting
+        self.input_feedrate_move = 300;
+        self.input_wait_time = ko.observable("30"); // time to wait for a response from the printer in seconds
 
         self.current_x = -1;
         self.current_y = -1;
@@ -29,7 +29,7 @@ $(function () {
         self.PointCloud = [];
 
         self.moveOngoing = false; // this is set to true when a move Gcode is sent to the printer and set to false after each M114 response that is captured
-
+        self.moveTime =self.input_wait_time()*1000; // this is the time in seconds that the printer has to respond to a M114 command after a move Gcode was sent
         self.checkPositionInterval = 0; //the interval is saved here so it can be stopped later
 
         self.lastCounterSent = 0;
@@ -39,6 +39,7 @@ $(function () {
 
         self.trace = async function () {
             console.log("##trace");
+            self.PointCloud = [];
             self.lastCounterSent = 0;
             self.lastCounterRecvd = -1;
             // Validate input values
@@ -59,12 +60,13 @@ $(function () {
 
                     // Do probe
                     nextCommand = `G38.3 Z-${5 * parseInt(self.input_lift_z())} F${parseInt(self.input_feedrate_probe()) + parseInt(self.lastCounterSent)}`
+                    self.lastCounterSent++;
                     var last_hit = await self.setAndSendGcode(nextCommand);
                     self.PointCloud.push(last_hit);
                 }
 
                 // Move to next line
-                self.setAndSendGcode(`G38.3 Z${maxZ}`);
+                self.setAndSendGcode(`G0 Z${maxZ}`);
                 self.setAndSendGcode(`G38.3 X0 Y${y + parseInt(self.input_stepsize_y())}`);
             }
             self.downloadPointCloud(self.PointCloud);
@@ -80,7 +82,7 @@ $(function () {
                 console.log(`Moving up to Z:${parseFloat(self.input_lift_z()) + tries * parseFloat(self.input_lift_z())}`);
                 await self.setAndSendGcode(`G0 Z${parseFloat(self.input_lift_z()) + tries * parseFloat(self.input_lift_z())}`);
                 newCommand = `G38.3 X${x} Y${y} F${parseInt(self.input_feedrate_probe()) + parseInt(self.lastCounterSent)}`
-
+                self.lastCounterSent++;
                 var xy_return = await self.setAndSendGcode(newCommand);
                 if (xy_return.x !== x || xy_return.y !== y) {
                     console.log(`XYZ: ${xy_return.x}, ${xy_return.y}, ${xy_return.z} not reached, restarting moveOnGrid, tries: ${tries}`);
@@ -105,6 +107,10 @@ $(function () {
         }
 
         self.GoXYZero = function () {
+            // move up on z axis
+            self.setAndSendGcode("G91 ;absolute Positioning");
+            self.setAndSendGcode("G0 Z1");
+            self.setAndSendGcode("G90 ;absolute Positioning");
             self.setAndSendGcode("G38.3 X0 Y0");            
         }
 
@@ -175,12 +181,12 @@ $(function () {
             return new Promise((resolve, reject) => {
                 const intervalId = setInterval(() => {
                     checkResponse(resolve, reject);
-                }, 200);
+                }, 100);
         
                 setTimeout(() => {
                     clearInterval(intervalId);
                     reject(new Error("Timeout"));
-                }, 5000); // Timeout after 5 seconds
+                }, self.moveTime); // Timeout after 5 seconds
             });
         }
 
