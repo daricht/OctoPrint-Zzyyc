@@ -5,15 +5,17 @@ $(function () {
         self.terminal = parameters[1];
         self.settings = parameters[2];
 
+        self.isCalculating = ko.observable(false);
+
         self.input_size_x = ko.observable("3");
         self.input_size_y = ko.observable("3");
-        self.input_max_z = ko.observable("10");
+        self.input_max_z = ko.observable("30");
         self.input_stepsize_x = ko.observable("1");
         self.input_stepsize_y = ko.observable("1");
-        self.input_lift_z = ko.observable("2");
-        self.input_feedrate_probe = ko.observable("300"); // feedrate for probing in mm/min
-        self.input_feedrate_move = ko.observable("300");
-        self.input_wait_time = ko.observable("10"); // time to wait for a response from the printer in seconds
+        self.input_lift_z = ko.observable("1");
+        self.input_feedrate_probe = 300; // feedrate for probing in mm/min but this is usually overwritten by the maschines so here its just used for counting
+        self.input_feedrate_move = 300;
+        self.input_wait_time = ko.observable("30"); // time to wait for a response from the printer in seconds
 
         self.current_x = -1;
         self.current_y = -1;
@@ -23,90 +25,27 @@ $(function () {
         self.target_y = -1;
         self.target_z = -1;
 
-        self.moveOngoing = false; // this is set to true when a move Gcode is sent to the printer and set to false after each M114 response that is captured
+        //pointcloud variable to store the points after each probe hit
+        self.PointCloud = [];
 
+        self.moveOngoing = false; // this is set to true when a move Gcode is sent to the printer and set to false after each M114 response that is captured
+        self.moveTime =parseInt(self.input_wait_time())*1000; // this is the time in seconds that the printer has to respond to a M114 command after a move Gcode was sent
         self.checkPositionInterval = 0; //the interval is saved here so it can be stopped later
 
-        self.counter = 0;
+        self.lastCounterSent = 0;
         self.lastCounterRecvd = -1;
+        self.last_z_height = 0;
 
         // todo: add validation for the input values, that can be skipped with an ok button. for example max z should be bigger that lift z
 
-        function waitForPosition() {
-            console.log("##waitForPosition");
-            // fix this whole function doesnt really run async the whole gcode is generated at once which sucks
-            return new Promise(resolve => {
-                function getPosition(retries = 100) {
-                    console.log("##getPosition");
-                    const output = self.terminal.displayedLines();
-                    for (let i = output.length - 1; i >= 0; i--) {
-                        const line = output[i].line;
-                        if (line.includes("Send: G38.3")) {
-                            if (line.includes("F")) {
-                                if (self.lastCounterRecvd == parseFloat(line.match(/F(\d+)/)[1]) - parseFloat(self.input_feedrate_probe())) {
-                                    setTimeout(checkProbeResult, 100);
-                                } else {
-                                    self.lastCounterRecvd = parseFloat(line.match(/F(\d+)/)[1]) - parseFloat(self.input_feedrate_probe());
-                                }
-                            }
-                        }
-                        // depending on the printer the answer is "Recv: X:" or "Recv: ok X:"
-                        if (line.includes("Recv: X:") || line.includes("Recv: ok X:")) {
-                            const x = parseFloat(line.match(/X:(-?\d+\.\d+)/)[1]);
-                            const y = parseFloat(line.match(/Y:(-?\d+\.\d+)/)[1]);
-                            const z = parseFloat(line.match(/Z:(-?\d+\.\d+)/)[1]);
-                            
-                            resolve({ x, y, z });
-                            return;
-                        }
-                    }
-                    if (retries <= 0) {
-                        setTimeout(getPosition, 100, retries--);
-                    }
-                }
-                getPosition();
-            });
-        }
-
-        // Create a promise that resolves when the probe is done
-        function doProbe() {
-            console.log("##doProbe")
-            self.setAndSendGcode(`G38.3 Z-${5 * parseInt(self.input_lift_z())} F${parseInt(self.input_feedrate_probe()) + parseInt(self.counter)}`);
-            self.counter++;
-            return new Promise(resolve => {
-                function checkProbeResult() {
-                    const output = self.terminal.displayedLines();
-                    for (let i = output.length - 1; i >= 0; i--) {
-                        const line = output[i].line;
-                        // console.log("DoProbe_current line: "+line);
-                        if (line.includes("Send: G38.3")) {
-                            if (line.includes("F")) {
-                                if (self.lastCounterRecvd == parseFloat(line.match(/F(\d+)/)[1]) - parseFloat(self.input_feedrate_probe())) {
-                                    setTimeout(checkProbeResult, 100);
-                                    return;
-                                } else {
-                                    self.lastCounterRecvd = parseFloat(line.match(/F(\d+)/)[1]) - parseFloat(self.input_feedrate_probe());
-                                    setTimeout(checkProbeResult, 100);
-                                    return;
-                                }
-                            }
-                        }
-                        if (line.includes("Recv: X:") || line.includes("Recv: ok X:")) {
-                            const x = parseFloat(line.match(/X:(-?\d+\.\d+)/)[1]);
-                            const y = parseFloat(line.match(/Y:(-?\d+\.\d+)/)[1]);
-                            const z = parseFloat(line.match(/Z:(-?\d+\.\d+)/)[1]);
-                            resolve({ x, y, z });
-                            return;
-                        }
-                    }
-                    setTimeout(checkProbeResult, 100);
-                }
-                checkProbeResult();
-            });
-        }
-
         self.trace = async function () {
+            console.log("##trace");
+            self.PointCloud = [];
+            self.lastCounterSent = 0;
+            self.lastCounterRecvd = -1;
             // Validate input values
+            self.isCalculating(true);
+            self.PointCloud = [];
             const maxZ = parseInt(self.input_max_z());
             const liftZ = parseInt(self.input_lift_z());
             if (maxZ <= liftZ) {
@@ -121,25 +60,36 @@ $(function () {
                     await self.moveOnGrid(x, y);
 
                     // Do probe
-                    await doProbe();
+                    nextCommand = `G38.3 Z-${5 * parseInt(self.input_lift_z())} F${parseInt(self.input_feedrate_probe) + parseInt(self.lastCounterSent)}`
+                    self.lastCounterSent++;
+                    var last_hit = await self.setAndSendGcode(nextCommand);
+                    self.last_z_height = last_hit.z;
+                    self.PointCloud.push(last_hit);
                 }
 
                 // Move to next line
                 self.setAndSendGcode(`G0 Z${maxZ}`);
+                await self.setAndSendGcode(`G38.3 X0 Y${y + parseInt(self.input_stepsize_y())}`);
             }
+            self.downloadPointCloud(self.PointCloud);
+            self.isCalculating(false);
         }
 
         self.moveOnGrid = async function (x, y) {
+            console.log("##moveOnGrid");
             // Move to next position
+            tries = 0;
             while (self.current_x !== x || self.current_y !== y) {
-                console.log(`Moving up to Z:${parseInt(self.input_lift_z())}`);
-                await self.setAndSendGcode(`G0 Z${parseInt(self.input_lift_z())}`);
-                console.log(`Moving to position x:${x}, y:${y}, F:${parseInt(self.input_feedrate_probe()) + parseInt(self.counter)}`);
-                await self.setAndSendGcode(`G38.3 X${x} Y${y} F${parseInt(self.input_feedrate_probe()) + parseInt(self.counter)}`);
-                self.counter++;
-                var xy_return= await waitForPosition();
+                // self.lastCounterSent++;
+                //todo use the above mentioned variable to imitate relative z movement without setting G91
+                console.log(`Moving up to Z:${parseFloat(self.input_lift_z()) + self.last_z_height + tries * parseFloat(self.input_lift_z())}`);
+                await self.setAndSendGcode(`G0 Z${parseFloat(self.input_lift_z()) + self.last_z_height + tries * parseFloat(self.input_lift_z())}`);
+                newCommand = `G38.3 X${x} Y${y} F${parseInt(self.input_feedrate_probe) + parseInt(self.lastCounterSent)}`
+                self.lastCounterSent++;
+                var xy_return = await self.setAndSendGcode(newCommand);
                 if (xy_return.x !== x || xy_return.y !== y) {
-                    console.log("XY not reached, restarting moveOnGrid");
+                    console.log(`XYZ: ${xy_return.x}, ${xy_return.y}, ${xy_return.z} not reached, restarting moveOnGrid, tries: ${tries}`);
+                    tries++;
                 } else {
                     self.current_x = x;
                     self.current_y = y;
@@ -159,8 +109,12 @@ $(function () {
             self.setAndSendGcode("G92 Z0 ;set Zero");
         }
 
-        self.stopPolling = function () {
-            // clearInterval(self.checkPositionInterval);
+        self.GoXYZero = function () {
+            // move up on z axis
+            self.setAndSendGcode("G91 ;relative Positioning");
+            self.setAndSendGcode("G0 Z1");
+            self.setAndSendGcode("G90 ;absolute Positioning");
+            self.setAndSendGcode("G38.3 X0 Y0");            
         }
 
         self.suppressTempMsg = function () {
@@ -169,62 +123,92 @@ $(function () {
             console.log("//suppressTempMsg")
         }
 
-        // self.setAndSendGcode = function (code) {
-        //     self.terminal.command(code);
-        //     self.terminal.sendCommand();
-        //     self.terminal.command("M114");
-        //     self.terminal.sendCommand();
-        //     return new Promise(resolve => {
-        //         function checkResponse() {
-        //             const output = self.terminal.displayedLines();
-        //             const lastLine = output[output.length - 1].line;
-        //             if (lastLine.includes("ok")) {
-        //                 resolve();
-        //             } else {
-        //                 setTimeout(checkResponse, 100);
-        //             }
-        //         }
-        //         checkResponse();
-        //     });
-        // }
-
         self.setAndSendGcode = function (code) {
+            console.log(`##setAndSendGcode: ${code}`);
+            // remove gcode comments including the single preceding space
+            code = code.replace(/;.*$/, "").replace(/\s$/, "");
             self.terminal.command(code);
             self.terminal.sendCommand();
             self.terminal.command("M114");
             self.terminal.sendCommand();
-            return new Promise(resolve => {
-                function checkResponse() {
-                    const output = self.terminal.displayedLines();
-                    let originalLineIndex = -1;
-                    for (let i = output.length - 1; i >= 0; i--) {
-                        if (output[i].line.includes(code)) {
-                            originalLineIndex = i;
-                            break;
-                        }
+        
+            function checkResponse(resolve, reject) {
+                console.log("##checkResponse")
+                const output = self.terminal.displayedLines();
+                let originalLineIndex = -1;
+        
+                for (let i = output.length - 1; i >= 0; i--) {
+                    if (output[i].line.includes(code)) { //find original command
+                        originalLineIndex = i;
+                        break;
                     }
-                    if (originalLineIndex === -1) {
-                        setTimeout(checkResponse, 100);
-                        return;
-                    }
-                    let okReceivedLineIndex = -1;
-                    for (let i = originalLineIndex; i < output.length; i++) {
-                        if (output[i].line.includes("ok")) {
-                            okReceivedLineIndex = i;
-                            break;
-                        }
-                    }
-                    if (okReceivedLineIndex === -1) {
-                        setTimeout(checkResponse, 100);
-                        return;
-                    }
-                    resolve();
                 }
-                checkResponse();
+        
+                if (originalLineIndex === -1) { //if not found, wait and try again
+                    console.log("originalLineIndex === -1 -> command was not found in the terminal output, will wait and try again");
+                    return;
+                }
+        
+                let okReceivedLineIndex = -1;
+                for (let i = originalLineIndex; i < output.length; i++) { //find ok response to original command
+                    if (output[i].line.includes("Recv: ok")) {
+                        okReceivedLineIndex = i;
+                        console.log("ok Received LineIndex: " + okReceivedLineIndex);
+                        break;
+                    }
+                }
+        
+                for (let i = originalLineIndex; i < output.length; i++) { //find Coordinates-Response to original command
+                    if (output[i].line.includes("Recv: X:") || output[i].line.includes("Recv: ok X:")) {
+                        console.log("Coordinates-Response LineIndex: " + i);
+                        const x = parseFloat(output[i].line.match(/X:(-?\d+\.\d+)/)[1]);
+                        const y = parseFloat(output[i].line.match(/Y:(-?\d+\.\d+)/)[1]);
+                        const z = parseFloat(output[i].line.match(/Z:(-?\d+\.\d+)/)[1]);
+                        if (z==2){
+                            console.log("z==2")
+                        }
+                        resolve({ x, y, z });
+                        return;
+                    }
+                }
+        
+                if (okReceivedLineIndex === -1) { 
+                    console.log("okReceivedLineIndex === -1 -> ok was not received, will wait and try again");
+                    return;
+                }
+        
+                self.terminal.command("M114");
+                self.terminal.sendCommand();
+            }
+        
+            return new Promise((resolve, reject) => {
+                const intervalId = setInterval(() => {
+                    checkResponse(resolve, reject);
+                }, 100);
+        
+                setTimeout(() => {
+                    clearInterval(intervalId);
+                    reject(new Error("Timeout"));
+                }, self.moveTime); // Timeout after 5 seconds
             });
         }
 
 
+        self.downloadPointCloud = function (pointCloud) {
+            // Convert the point cloud array to a string
+            const pointCloudString = JSON.stringify(pointCloud);
+
+            // Create a Blob with the string data
+            const blob = new Blob([pointCloudString], { type: 'application/json' });
+
+            // Create a download link
+            const downloadLink = document.createElement('a');
+            downloadLink.href = URL.createObjectURL(blob);
+            downloadLink.download = 'pointCloud.json';
+
+            // Click the download link to initiate the download
+            downloadLink.click();
+        }
 
     }
     /* view model class, parameters for constructor, container to bind to
