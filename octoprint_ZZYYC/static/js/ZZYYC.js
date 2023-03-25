@@ -29,11 +29,12 @@ $(function () {
         self.PointCloud = [];
 
         self.moveOngoing = false; // this is set to true when a move Gcode is sent to the printer and set to false after each M114 response that is captured
-        self.moveTime =self.input_wait_time()*1000; // this is the time in seconds that the printer has to respond to a M114 command after a move Gcode was sent
+        self.moveTime =parseInt(self.input_wait_time())*1000; // this is the time in seconds that the printer has to respond to a M114 command after a move Gcode was sent
         self.checkPositionInterval = 0; //the interval is saved here so it can be stopped later
 
         self.lastCounterSent = 0;
         self.lastCounterRecvd = -1;
+        self.last_z_height = 0;
 
         // todo: add validation for the input values, that can be skipped with an ok button. for example max z should be bigger that lift z
 
@@ -59,15 +60,16 @@ $(function () {
                     await self.moveOnGrid(x, y);
 
                     // Do probe
-                    nextCommand = `G38.3 Z-${5 * parseInt(self.input_lift_z())} F${parseInt(self.input_feedrate_probe()) + parseInt(self.lastCounterSent)}`
+                    nextCommand = `G38.3 Z-${5 * parseInt(self.input_lift_z())} F${parseInt(self.input_feedrate_probe) + parseInt(self.lastCounterSent)}`
                     self.lastCounterSent++;
                     var last_hit = await self.setAndSendGcode(nextCommand);
+                    self.last_z_height = last_hit.z;
                     self.PointCloud.push(last_hit);
                 }
 
                 // Move to next line
                 self.setAndSendGcode(`G0 Z${maxZ}`);
-                self.setAndSendGcode(`G38.3 X0 Y${y + parseInt(self.input_stepsize_y())}`);
+                await self.setAndSendGcode(`G38.3 X0 Y${y + parseInt(self.input_stepsize_y())}`);
             }
             self.downloadPointCloud(self.PointCloud);
             self.isCalculating(false);
@@ -79,9 +81,10 @@ $(function () {
             tries = 0;
             while (self.current_x !== x || self.current_y !== y) {
                 // self.lastCounterSent++;
-                console.log(`Moving up to Z:${parseFloat(self.input_lift_z()) + tries * parseFloat(self.input_lift_z())}`);
-                await self.setAndSendGcode(`G0 Z${parseFloat(self.input_lift_z()) + tries * parseFloat(self.input_lift_z())}`);
-                newCommand = `G38.3 X${x} Y${y} F${parseInt(self.input_feedrate_probe()) + parseInt(self.lastCounterSent)}`
+                //todo use the above mentioned variable to imitate relative z movement without setting G91
+                console.log(`Moving up to Z:${parseFloat(self.input_lift_z()) + self.last_z_height + tries * parseFloat(self.input_lift_z())}`);
+                await self.setAndSendGcode(`G0 Z${parseFloat(self.input_lift_z()) + self.last_z_height + tries * parseFloat(self.input_lift_z())}`);
+                newCommand = `G38.3 X${x} Y${y} F${parseInt(self.input_feedrate_probe) + parseInt(self.lastCounterSent)}`
                 self.lastCounterSent++;
                 var xy_return = await self.setAndSendGcode(newCommand);
                 if (xy_return.x !== x || xy_return.y !== y) {
@@ -108,7 +111,7 @@ $(function () {
 
         self.GoXYZero = function () {
             // move up on z axis
-            self.setAndSendGcode("G91 ;absolute Positioning");
+            self.setAndSendGcode("G91 ;relative Positioning");
             self.setAndSendGcode("G0 Z1");
             self.setAndSendGcode("G90 ;absolute Positioning");
             self.setAndSendGcode("G38.3 X0 Y0");            
