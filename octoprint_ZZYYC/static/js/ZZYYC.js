@@ -79,7 +79,6 @@ $(function () {
             console.log("##moveOnGrid");
             // Move to next position
             tries = 0;
-            Math.round(xy_return.x*10)/10
             while (self.current_x !== x || self.current_y !== y) {
                 // self.lastCounterSent++;
                 //todo use the above mentioned variable to imitate relative z movement without setting G91
