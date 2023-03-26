@@ -79,7 +79,8 @@ $(function () {
             console.log("##moveOnGrid");
             // Move to next position
             tries = 0;
-            while (Math.round(self.current_x*10)/10 !== x || Math.round(self.current_y*10)/10 !== y) {
+            Math.round(xy_return.x*10)/10
+            while (self.current_x !== x || self.current_y !== y) {
                 // self.lastCounterSent++;
                 //todo use the above mentioned variable to imitate relative z movement without setting G91
                 console.log(`Moving up to Z:${parseFloat(self.input_lift_z()) + self.last_z_height + tries * parseFloat(self.input_lift_z())}`);
@@ -87,10 +88,10 @@ $(function () {
                 newCommand = `G38.3 X${x} Y${y} F${parseInt(self.input_feedrate_probe) + parseInt(self.lastCounterSent)}`
                 self.lastCounterSent++;
                 var xy_return = await self.setAndSendGcode(newCommand);
-                if (xy_return.x !== x || xy_return.y !== y) {
+                if (Math.round(xy_return.x*10)/10 !== x || Math.round(xy_return.y*10)/10 !== y) { // if the position is not reached, try again
                     console.log(`XYZ: ${xy_return.x}, ${xy_return.y}, ${xy_return.z} not reached, restarting moveOnGrid, tries: ${tries}`);
                     tries++;
-                } else {
+                } else { // if the position is reached, set the current position and break the loop
                     self.current_x = x;
                     self.current_y = y;
                     console.log(`Reached position x:${x}, y:${y}`);
