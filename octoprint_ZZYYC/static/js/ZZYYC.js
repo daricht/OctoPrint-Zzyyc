@@ -16,6 +16,7 @@ $(function () {
         self.input_feedrate_probe = 300; // feedrate for probing in mm/min but this is usually overwritten by the maschines so here its just used for counting
         self.input_feedrate_move = 300;
         self.input_wait_time = ko.observable("30"); // time to wait for a response from the printer in seconds
+        self.input_tolerance = ko.observable("0.1"); // tolerance for reaching the target position
 
         self.current_x = -1;
         self.current_y = -1;
@@ -87,8 +88,28 @@ $(function () {
                 newCommand = `G38.3 X${x} Y${y} F${parseInt(self.input_feedrate_probe) + parseInt(self.lastCounterSent)}`
                 self.lastCounterSent++;
                 var xy_return = await self.setAndSendGcode(newCommand);
-                if (Math.round(xy_return.x*10)/10 !== x || Math.round(xy_return.y*10)/10 !== y) { // if the position is not reached, try again
-                    console.log(`XYZ: ${xy_return.x}, ${xy_return.y}, ${xy_return.z} not reached, restarting moveOnGrid, tries: ${tries}`);
+
+                // var xy_return = { x: 4.05 };
+                // var x = 4;
+          
+                // // Evaluate the expression and round to one decimal place
+                // if (Math.round(xy_return.x*10)/10 !== x || Math.round(xy_return.y*10)/10 !== y) { // if the position is not reached, try again
+                // if (Math.abs(x - xy_return.x) > parseInt(self.input_tolerance)){
+                //     alert ("over tolerance: "+(xy_return.x - x).toString())
+                // } else {
+                //     alert ("within tolerance: " + (xy_return.x -x).toString())
+                //     var result = Math.round(xy_return.x * 10) / 10;
+                // }
+                
+
+
+
+
+
+
+
+                if (Math.abs(x - xy_return.x) > parseInt(self.input_tolerance) || Math.abs(y - xy_return.y) > parseInt(self.input_tolerance)) { // if the position is not reached, try again
+                    console.log(`XYZ: ${xy_return.x}, ${xy_return.y}, ${xy_return.z} over tolerance, restarting moveOnGrid, tries: ${tries}`);
                     tries++;
                 } else { // if the position is reached, set the current position and break the loop
                     self.current_x = x;

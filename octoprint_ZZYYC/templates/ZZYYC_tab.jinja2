@@ -9,9 +9,9 @@
     <br>
     <label for="max_z">Safety Z-Height:</label>
     <input type="text" id="max_z" name="max_z" data-bind="value: input_max_z, disable: isCalculating" title="Set this to the highest point on your Buildplate. Height for moving across the platform, for example when moving from the end of one row in x to the start of the next, during the y change.">
-    {# <br>
-    <label for="feedrate_probe">Probing Feedrate:</label>
-    <input type="text" id="feedrate_probe" name="feedrate_probe" data-bind="value: input_feedrate_probe, disable: isCalculating" title="The speed the probe will move at when looking for a target."> #}
+    <br>
+    <label for="feedrate_probe">Position Tolerance</label>
+    <input type="text" id="tolerance" name="tolerance" data-bind="value: input_tolerance, disable: isCalculating" title="If the reported position is within this value of the target pos the position will be processed as reached.">
 
 </div>
 <div style="float: right; padding:30px;">
