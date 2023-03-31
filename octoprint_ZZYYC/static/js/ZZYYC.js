@@ -117,6 +117,19 @@ $(function () {
             self.setAndSendGcode("G38.3 X0 Y0");            
         }
 
+        self.moveUp = function () {
+            self.setAndSendGcode("G91 ;relative Positioning");
+            self.setAndSendGcode("G0 Z1");
+            self.setAndSendGcode("G90 ;absolute Positioning");
+        }
+
+        self.zeroxy = function () {
+            self.setAndSendGcode("G92 X0 Y0 ;set Zero");
+        }
+
+
+
+
         self.suppressTempMsg = function () {
             console.log("##suppressTempMsg")
             self.setAndSendGcode("M155 S60");
