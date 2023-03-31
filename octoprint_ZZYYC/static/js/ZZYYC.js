@@ -16,7 +16,7 @@ $(function () {
         self.input_feedrate_probe = 300; // feedrate for probing in mm/min but this is usually overwritten by the maschines so here its just used for counting
         self.input_feedrate_move = 300;
         self.input_wait_time = ko.observable("30"); // time to wait for a response from the printer in seconds
-        self.input_tolerance = ko.observable("0.1"); // tolerance for reaching the target position
+        self.input_tolerance = ko.observable("0.08"); // tolerance for reaching the target position
 
         self.current_x = -1;
         self.current_y = -1;
