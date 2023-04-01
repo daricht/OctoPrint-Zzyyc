@@ -41,7 +41,7 @@ $(function () {
         // todo: add validation for the input values, that can be skipped with an ok button. for example max z should be bigger that lift z
 
         self.debuggingLog = function (msg) {
-            if (self.input_logging()==true){
+            if (Boolean(self.input_logging())==true){
                 console.log(msg);
             }
         }
