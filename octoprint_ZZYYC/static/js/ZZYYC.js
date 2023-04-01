@@ -17,6 +17,7 @@ $(function () {
         self.input_feedrate_move = 300;
         self.input_wait_time = ko.observable("30"); // time to wait for a response from the printer in seconds
         self.input_tolerance = ko.observable("0.08"); // tolerance for reaching the target position
+        self.input_logging = ko.observable("false"); // if true, the plugin will log all the messages to the console
 
         self.current_x = -1;
         self.current_y = -1;
@@ -39,8 +40,14 @@ $(function () {
 
         // todo: add validation for the input values, that can be skipped with an ok button. for example max z should be bigger that lift z
 
+        self.debuggingLog = function (msg) {
+            if (self.input_logging()==true){
+                console.log(msg);
+            }
+        }
+
         self.trace = async function () {
-            console.log("##trace");
+            self.debuggingLog("##trace");
             self.PointCloud = [];
             self.lastCounterSent = 0;
             self.lastCounterRecvd = -1;
@@ -77,13 +84,13 @@ $(function () {
         }
 
         self.moveOnGrid = async function (x, y) {
-            console.log("##moveOnGrid");
+            self.debuggingLog("##moveOnGrid");
             // Move to next position
             tries = 0;
             while (self.current_x !== x || self.current_y !== y) {
                 // self.lastCounterSent++;
                 //todo use the above mentioned variable to imitate relative z movement without setting G91
-                console.log(`Moving up to Z:${parseFloat(self.input_lift_z()) + self.last_z_height + tries * parseFloat(self.input_lift_z())}`);
+                self.debuggingLog(`Moving up to Z:${parseFloat(self.input_lift_z()) + self.last_z_height + tries * parseFloat(self.input_lift_z())}`);
                 await self.setAndSendGcode(`G0 Z${parseFloat(self.input_lift_z()) + self.last_z_height + tries * parseFloat(self.input_lift_z())}`);
                 newCommand = `G38.3 X${x} Y${y} F${parseInt(self.input_feedrate_probe) + parseInt(self.lastCounterSent)}`
                 self.lastCounterSent++;
@@ -91,16 +98,16 @@ $(function () {
 
                 
                 if (Math.abs(x - xy_return.x) > parseFloat(self.input_tolerance()) || Math.abs(y - xy_return.y) > parseFloat(self.input_tolerance())) { // if the position is not reached, try again
-                    console.log(`XYZ: ${xy_return.x}, ${xy_return.y}, ${xy_return.z} tolerance exceeded, restarting moveOnGrid, tries: ${tries}`);
+                    self.debuggingLog(`XYZ: ${xy_return.x}, ${xy_return.y}, ${xy_return.z} tolerance exceeded, restarting moveOnGrid, tries: ${tries}`);
                     tries++;
                 } else { // if the position is reached, set the current position and break the loop
                     self.current_x = x;
                     self.current_y = y;
-                    console.log(`Reached position x:${x}, y:${y}`);
+                    self.debuggingLog(`Reached position x:${x}, y:${y}`);
                     break;
                 }
             }
-            console.log(`Already at position x:${x}, y:${y}`);
+            self.debuggingLog(`Already at position x:${x}, y:${y}`);
         }
 
         self.lowerZ = function () {
@@ -134,13 +141,13 @@ $(function () {
 
 
         self.suppressTempMsg = function () {
-            console.log("##suppressTempMsg")
+            self.debuggingLog("##suppressTempMsg")
             self.setAndSendGcode("M155 S60");
-            console.log("//suppressTempMsg")
+            self.debuggingLog("//suppressTempMsg")
         }
 
         self.setAndSendGcode = function (code) {
-            console.log(`##setAndSendGcode: ${code}`);
+            self.debuggingLog(`##setAndSendGcode: ${code}`);
             // remove gcode comments including the single preceding space
             code = code.replace(/;.*$/, "").replace(/\s$/, "");
             self.terminal.command(code);
@@ -149,7 +156,7 @@ $(function () {
             self.terminal.sendCommand();
         
             function checkResponse(resolve, reject) {
-                console.log("##checkResponse")
+                self.debuggingLog("##checkResponse")
                 const output = self.terminal.displayedLines();
                 let originalLineIndex = -1;
         
@@ -161,7 +168,7 @@ $(function () {
                 }
         
                 if (originalLineIndex === -1) { //if not found, wait and try again
-                    console.log("originalLineIndex === -1 -> command was not found in the terminal output, will wait and try again");
+                    self.debuggingLog("originalLineIndex === -1 -> command was not found in the terminal output, will wait and try again");
                     return;
                 }
         
@@ -169,19 +176,19 @@ $(function () {
                 for (let i = originalLineIndex; i < output.length; i++) { //find ok response to original command
                     if (output[i].line.includes("Recv: ok")) {
                         okReceivedLineIndex = i;
-                        console.log("ok Received LineIndex: " + okReceivedLineIndex);
+                        self.debuggingLog("ok Received LineIndex: " + okReceivedLineIndex);
                         break;
                     }
                 }
         
                 for (let i = originalLineIndex; i < output.length; i++) { //find Coordinates-Response to original command
                     if (output[i].line.includes("Recv: X:") || output[i].line.includes("Recv: ok X:")) {
-                        console.log("Coordinates-Response LineIndex: " + i);
+                        self.debuggingLog("Coordinates-Response LineIndex: " + i);
                         const x = parseFloat(output[i].line.match(/X:(-?\d+\.\d+)/)[1]);
                         const y = parseFloat(output[i].line.match(/Y:(-?\d+\.\d+)/)[1]);
                         const z = parseFloat(output[i].line.match(/Z:(-?\d+\.\d+)/)[1]);
                         if (z==2){
-                            console.log("z==2")
+                            self.debuggingLog("z==2")
                         }
                         resolve({ x, y, z });
                         return;
@@ -189,7 +196,7 @@ $(function () {
                 }
         
                 if (okReceivedLineIndex === -1) { 
-                    console.log("okReceivedLineIndex === -1 -> ok was not received, will wait and try again");
+                    self.debuggingLog("okReceivedLineIndex === -1 -> ok was not received, will wait and try again");
                     return;
                 }
         
