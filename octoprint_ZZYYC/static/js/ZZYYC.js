@@ -90,7 +90,7 @@ $(function () {
                 var xy_return = await self.setAndSendGcode(newCommand);
 
                 
-                if (Math.abs(x - xy_return.x) > parseInt(self.input_tolerance) || Math.abs(y - xy_return.y) > parseInt(self.input_tolerance)) { // if the position is not reached, try again
+                if (Math.abs(x - xy_return.x) > parseFloat(self.input_tolerance()) || Math.abs(y - xy_return.y) > parseFloat(self.input_tolerance())) { // if the position is not reached, try again
                     console.log(`XYZ: ${xy_return.x}, ${xy_return.y}, ${xy_return.z} tolerance exceeded, restarting moveOnGrid, tries: ${tries}`);
                     tries++;
                 } else { // if the position is reached, set the current position and break the loop
