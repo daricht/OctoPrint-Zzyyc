@@ -89,27 +89,9 @@ $(function () {
                 self.lastCounterSent++;
                 var xy_return = await self.setAndSendGcode(newCommand);
 
-                // var xy_return = { x: 4.05 };
-                // var x = 4;
-          
-                // // Evaluate the expression and round to one decimal place
-                // if (Math.round(xy_return.x*10)/10 !== x || Math.round(xy_return.y*10)/10 !== y) { // if the position is not reached, try again
-                // if (Math.abs(x - xy_return.x) > parseInt(self.input_tolerance)){
-                //     alert ("over tolerance: "+(xy_return.x - x).toString())
-                // } else {
-                //     alert ("within tolerance: " + (xy_return.x -x).toString())
-                //     var result = Math.round(xy_return.x * 10) / 10;
-                // }
                 
-
-
-
-
-
-
-
                 if (Math.abs(x - xy_return.x) > parseInt(self.input_tolerance) || Math.abs(y - xy_return.y) > parseInt(self.input_tolerance)) { // if the position is not reached, try again
-                    console.log(`XYZ: ${xy_return.x}, ${xy_return.y}, ${xy_return.z} over tolerance, restarting moveOnGrid, tries: ${tries}`);
+                    console.log(`XYZ: ${xy_return.x}, ${xy_return.y}, ${xy_return.z} tolerance exceeded, restarting moveOnGrid, tries: ${tries}`);
                     tries++;
                 } else { // if the position is reached, set the current position and break the loop
                     self.current_x = x;
