@@ -27,8 +27,7 @@ $(function () {
         self.target_y = -1;
         self.target_z = -1;
 
-        //pointcloud variable to store the points after each probe hit
-        self.PointCloud = [];
+        self.PointCloud = []; //pointcloud variable to store the points after each probe hit
 
         self.moveOngoing = false; // this is set to true when a move Gcode is sent to the printer and set to false after each M114 response that is captured
         self.moveTime =parseInt(self.input_wait_time())*1000; // this is the time in seconds that the printer has to respond to a M114 command after a move Gcode was sent
@@ -64,6 +63,7 @@ $(function () {
             // Loop over the grid
             for (let y = 0; y <= parseInt(self.input_size_y()); y += parseInt(self.input_stepsize_y())) {
                 for (let x = 0; x <= parseInt(self.input_size_x()); x += parseInt(self.input_stepsize_x())) {
+                    // if self.input_size_x and y are 177 and stepsize_x and y are 5 then the loop will go from 0 to 175
                     // Move to next position
                     await self.moveOnGrid(x, y);
 
@@ -136,9 +136,6 @@ $(function () {
         self.zeroxy = function () {
             self.setAndSendGcode("G92 X0 Y0 ;set Zero");
         }
-
-
-
 
         self.suppressTempMsg = function () {
             self.debuggingLog("##suppressTempMsg")
@@ -216,7 +213,6 @@ $(function () {
             });
         }
 
-
         self.downloadPointCloud = function (pointCloud) {
             // Convert the point cloud array to a string
             const pointCloudString = JSON.stringify(pointCloud);
@@ -232,7 +228,6 @@ $(function () {
             // Click the download link to initiate the download
             downloadLink.click();
         }
-
     }
     /* view model class, parameters for constructor, container to bind to
      * Please see http://docs.octoprint.org/en/master/plugins/viewmodels.html#registering-custom-viewmodels for more details
@@ -246,5 +241,3 @@ $(function () {
         elements: ["#tab_plugin_ZZYYC" /* ... */]
     });
 });
-
-
