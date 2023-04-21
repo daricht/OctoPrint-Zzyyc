@@ -35,9 +35,12 @@
     <label for="wait_time">Wait Time:</label>
     <input type="text" id="wait_time" name="wait_time" data-bind="value: input_wait_time, disable: isCalculating" title="Time of your longest move plus some, be generous: The time to wait for a response from the printer in seconds.">
 
+    <label for="prescan_factor">prescan_factor:</label>
+    <input type="text" id="prescan_factor" name="prescan_factor" data-bind="value: input_prescan_factor, disable: isCalculating" title="factor between the fine (final) and coarse prescan grid density.">
+
 </div>
 <br style="clear: both;">
-<button type="button" class="btn btn-default" style="margin-left:30px;" data-bind= "click: trace">Start Probing</button>
+<button type="button" class="btn btn-default" style="margin-left:30px;" data-bind= "click: probe">Start Probing</button>
 <button type="button" class="btn btn-default" style="margin-left:30px;" data-bind= "click: lowerZ">Lower Z (G38.3 Z-2*safety_Z)</button>
 <button type="button" class="btn btn-default" style="margin-left:30px;" data-bind= "click: GoXYZero">Go to X,Y Zero</button>
 <br>

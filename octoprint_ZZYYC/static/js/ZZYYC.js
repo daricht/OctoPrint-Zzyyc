@@ -18,6 +18,8 @@ $(function () {
         self.input_wait_time = ko.observable("30"); // time to wait for a response from the printer in seconds
         self.input_tolerance = ko.observable("0.08"); // tolerance for reaching the target position
         self.input_logging = ko.observable("false"); // if true, the plugin will log all the messages to the console
+        //    <input type="text" id="prescan_factor" name="prescan_factor" data-bind="value: input_prescan_factor, disable: isCalculating" title="factor between the fine (final) and coarse prescan grid density.">
+        self.input_prescan_factor = ko.observable("10");
 
         self.current_x = -1;
         self.current_y = -1;
@@ -37,22 +39,11 @@ $(function () {
         self.lastCounterRecvd = -1;
         self.last_z_height = 0;
 
-        // todo: add validation for the input values, that can be skipped with an ok button. for example max z should be bigger that lift z
-
-        self.debuggingLog = function (msg) {
-            if (Boolean(self.input_logging())==true){
-                console.log(msg);
-            }
-        }
-
-        self.trace = async function () {
-            self.debuggingLog("##trace");
-            self.PointCloud = [];
-            self.lastCounterSent = 0;
-            self.lastCounterRecvd = -1;
+        self.probe = async function () {
+            self.debuggingLog("##probe");
+            
             // Validate input values
             self.isCalculating(true);
-            self.PointCloud = [];
             const maxZ = parseInt(self.input_max_z());
             const liftZ = parseInt(self.input_lift_z());
             if (maxZ <= liftZ) {
@@ -60,28 +51,33 @@ $(function () {
                 return;
             }
 
-            // Loop over the grid
-            for (let y = 0; y <= parseInt(self.input_size_y()); y += parseInt(self.input_stepsize_y())) {
-                for (let x = 0; x <= parseInt(self.input_size_x()); x += parseInt(self.input_stepsize_x())) {
-                    // if self.input_size_x and y are 177 and stepsize_x and y are 5 then the loop will go from 0 to 175
-                    // Move to next position
-                    await self.moveOnGrid(x, y);
+            self.gridLoop(parseInt(self.input_size_x()), parseInt(self.input_size_y()), parseInt(self.input_stepsize_x()), parseInt(self.input_stepsize_y()), maxZ);
 
-                    // Do probe
-                    nextCommand = `G38.3 Z-${5 * parseInt(self.input_lift_z())} F${parseInt(self.input_feedrate_probe) + parseInt(self.lastCounterSent)}`
-                    self.lastCounterSent++;
-                    var last_hit = await self.setAndSendGcode(nextCommand);
-                    self.last_z_height = last_hit.z;
-                    self.PointCloud.push(last_hit);
-                }
-
-                // Move to next line
-                self.setAndSendGcode(`G0 Z${maxZ}`);
-                await self.setAndSendGcode(`G38.3 X0 Y${y + parseInt(self.input_stepsize_y())}`);
-            }
             self.downloadPointCloud(self.PointCloud);
             self.isCalculating(false);
         }
+
+        self.gridLoop = async function (size_x, size_y, stepsize_x, stepsize_y, maxZ) {
+                        // Loop over the grid
+                        for (let y = 0; y <= size_y; y += stepsize_y) {
+                            for (let x = 0; x <= size_x; x += stepsize_x) {
+                                // if self.input_size_x and y are 177 and stepsize_x and y are 5 then the loop will go from 0 to 175
+                                // Move to next position
+                                await self.moveOnGrid(x, y);
+            
+                                // Do probe
+                                nextCommand = `G38.3 Z-${5 * parseInt(self.input_lift_z())} F${parseInt(self.input_feedrate_probe) + parseInt(self.lastCounterSent)}`
+                                self.lastCounterSent++;
+                                var last_hit = await self.setAndSendGcode(nextCommand);
+                                self.last_z_height = last_hit.z;
+                                self.PointCloud.push(last_hit);
+                            }
+            
+                            // Move to next line
+                            self.setAndSendGcode(`G0 Z${maxZ}`);
+                            await self.setAndSendGcode(`G38.3 X0 Y${y + parseInt(self.input_stepsize_y())}`);
+                        }
+                    }
 
         self.moveOnGrid = async function (x, y) {
             self.debuggingLog("##moveOnGrid");
@@ -89,14 +85,12 @@ $(function () {
             tries = 0;
             while (self.current_x !== x || self.current_y !== y) {
                 // self.lastCounterSent++;
-                //todo use the above mentioned variable to imitate relative z movement without setting G91
                 self.debuggingLog(`Moving up to Z:${parseFloat(self.input_lift_z()) + self.last_z_height + tries * parseFloat(self.input_lift_z())}`);
                 await self.setAndSendGcode(`G0 Z${parseFloat(self.input_lift_z()) + self.last_z_height + tries * parseFloat(self.input_lift_z())}`);
                 newCommand = `G38.3 X${x} Y${y} F${parseInt(self.input_feedrate_probe) + parseInt(self.lastCounterSent)}`
                 self.lastCounterSent++;
                 var xy_return = await self.setAndSendGcode(newCommand);
 
-                
                 if (Math.abs(x - xy_return.x) > parseFloat(self.input_tolerance()) || Math.abs(y - xy_return.y) > parseFloat(self.input_tolerance())) { // if the position is not reached, try again
                     self.debuggingLog(`XYZ: ${xy_return.x}, ${xy_return.y}, ${xy_return.z} tolerance exceeded, restarting moveOnGrid, tries: ${tries}`);
                     tries++;
@@ -108,39 +102,6 @@ $(function () {
                 }
             }
             self.debuggingLog(`Already at position x:${x}, y:${y}`);
-        }
-
-        self.lowerZ = function () {
-            //set 0
-            self.suppressTempMsg();
-            self.setAndSendGcode("G90 ;absolute Positioning");
-            self.setAndSendGcode("G92 X0 Y0 Z0 ;set Zero");
-            self.setAndSendGcode("G38.3 Z-" + 2 * parseInt(self.input_max_z()));
-            self.setAndSendGcode("G92 Z0 ;set Zero");
-        }
-
-        self.GoXYZero = function () {
-            // move up on z axis
-            self.setAndSendGcode("G91 ;relative Positioning");
-            self.setAndSendGcode("G0 Z1");
-            self.setAndSendGcode("G90 ;absolute Positioning");
-            self.setAndSendGcode("G38.3 X0 Y0");            
-        }
-
-        self.moveUp = function () {
-            self.setAndSendGcode("G91 ;relative Positioning");
-            self.setAndSendGcode("G0 Z1");
-            self.setAndSendGcode("G90 ;absolute Positioning");
-        }
-
-        self.zeroxy = function () {
-            self.setAndSendGcode("G92 X0 Y0 ;set Zero");
-        }
-
-        self.suppressTempMsg = function () {
-            self.debuggingLog("##suppressTempMsg")
-            self.setAndSendGcode("M155 S60");
-            self.debuggingLog("//suppressTempMsg")
         }
 
         self.setAndSendGcode = function (code) {
@@ -211,6 +172,51 @@ $(function () {
                     reject(new Error("Timeout"));
                 }, self.moveTime); // Timeout after 5 seconds
             });
+        }
+
+        self.lowerZ = function () {
+            //set 0
+            self.suppressTempMsg();
+            self.setAndSendGcode("G90 ;absolute Positioning");
+            self.setAndSendGcode("G92 X0 Y0 Z0 ;set Zero");
+            self.setAndSendGcode("G38.3 Z-" + 2 * parseInt(self.input_max_z()));
+            self.setAndSendGcode("G92 Z0 ;set Zero");
+        }
+
+        self.GoXYZero = function () {
+            // move up on z axis
+            self.setAndSendGcode("G91 ;relative Positioning");
+            self.setAndSendGcode("G0 Z1");
+            self.setAndSendGcode("G90 ;absolute Positioning");
+            self.setAndSendGcode("G38.3 X0 Y0");            
+        }
+
+        self.moveUp = function () {
+            self.setAndSendGcode("G91 ;relative Positioning");
+            self.setAndSendGcode("G0 Z1");
+            self.setAndSendGcode("G90 ;absolute Positioning");
+        }
+
+        self.zeroxy = function () {
+            self.setAndSendGcode("G92 X0 Y0 ;set Zero");
+        }
+
+        self.suppressTempMsg = function () {
+            self.debuggingLog("##suppressTempMsg")
+            self.setAndSendGcode("M155 S60");
+            self.debuggingLog("//suppressTempMsg")
+        }
+
+        self.debuggingLog = function (msg) {
+            if (Boolean(self.input_logging())==true){
+                console.log(msg);
+            }
+        }
+
+        self.resetStartingValues = function () {
+            self.PointCloud = [];
+            self.lastCounterSent = 0;
+            self.lastCounterRecvd = -1;
         }
 
         self.downloadPointCloud = function (pointCloud) {
