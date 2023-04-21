@@ -51,7 +51,7 @@ $(function () {
                 return;
             }
 
-            self.gridLoop(parseInt(self.input_size_x()), parseInt(self.input_size_y()), parseInt(self.input_stepsize_x()), parseInt(self.input_stepsize_y()), maxZ);
+            await self.gridLoop(parseInt(self.input_size_x()), parseInt(self.input_size_y()), parseInt(self.input_stepsize_x()), parseInt(self.input_stepsize_y()), maxZ);
 
             self.downloadPointCloud(self.PointCloud);
             self.isCalculating(false);
