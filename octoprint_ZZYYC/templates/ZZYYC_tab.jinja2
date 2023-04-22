@@ -31,13 +31,22 @@
     <input type="text" id="feedrate_move" name="feedrate_move" data-bind="value: input_feedrate_move, disable: isCalculating" title="The speed the probe will move at when moving between points.">
     <br> #}
     {# self.input_feedrate_move = ko.observable("300");
-        self.input_wait_time  #}
+        self.input_wait_time  
+                self.input_z_deviation = ko.observable("0.5"); // acceptible deviation between points around a target
+        self.input_z_deviation_from_zero = ko.observable("0.5"); // acceptable deviation of the cornerpoints and zero
+        #}
     <label for="wait_time">Wait Time:</label>
     <input type="text" id="wait_time" name="wait_time" data-bind="value: input_wait_time, disable: isCalculating" title="Time of your longest move plus some, be generous: The time to wait for a response from the printer in seconds.">
-
+    <br>
     <label for="prescan_factor">prescan_factor:</label>
     <input type="text" id="prescan_factor" name="prescan_factor" data-bind="value: input_prescan_factor, disable: isCalculating" title="factor between the fine (final) and coarse prescan grid density.">
-
+    <br>
+    <label for="z_deviation">z_deviation:</label>
+    <input type="text" id="z_deviation" name="z_deviation" data-bind="value: input_z_deviation, disable: isCalculating" title="acceptible deviation between points around a target">
+    <br>
+    <label for="z_deviation_from_zero">z_deviation_from_zero:</label>
+    <input type="text" id="z_deviation_from_zero" name="z_deviation_from_zero" data-bind="value: input_z_deviation_from_zero, disable: isCalculating" title="acceptable deviation of the cornerpoints and zero">
+    
 </div>
 <br style="clear: both;">
 <button type="button" class="btn btn-default" style="margin-left:30px;" data-bind= "click: probe">Start Probing</button>
