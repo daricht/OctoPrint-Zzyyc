@@ -66,7 +66,7 @@ $(function () {
 
 
 
-        self.gridLoop = async function (size_x, size_y, stepsize_x, stepsize_y, maxZ, finescan = false) {
+        self.gridLoop = async function (size_x, size_y, stepsize_x, stepsize_y, maxZ, finescan = false, prescan_factor) {
             // Loop over the grid
             for (let y = 0; y <= size_y; y += stepsize_y) {
                 for (let x = 0; x <= size_x; x += stepsize_x) {
@@ -77,11 +77,11 @@ $(function () {
                         continue;
                     }
                     // round down x and y to the nearest stepsize
-                    x_lower = Math.floor(x / stepsize_x) * stepsize_x;
-                    y_lower = Math.floor(y / stepsize_y) * stepsize_y;
+                    x_lower = Math.floor(x / prescan_factor) * prescan_factor;
+                    y_lower = Math.floor(y / prescan_factor) * prescan_factor;
                     // round up x and y to the nearest stepsize
-                    x_upper = Math.ceil(x / stepsize_x) * stepsize_x;
-                    y_upper = Math.ceil(y / stepsize_y) * stepsize_y;
+                    x_upper = Math.ceil(x / prescan_factor) * prescan_factor;
+                    y_upper = Math.ceil(y / prescan_factor) * prescan_factor;
 
                     // find the 4 points in the pointcloud that are closest to the target point
                     cornerpoints = self.PointCloud.filter(e => (e.x === x_lower && e.y === y_lower) || (e.x === x_lower && e.y === y_upper) || (e.x === x_upper && e.y === y_lower) || (e.x === x_upper && e.y === y_upper));
