@@ -80,8 +80,8 @@ $(function () {
                     x_lower = Math.floor(x / prescan_factor) * prescan_factor;
                     y_lower = Math.floor(y / prescan_factor) * prescan_factor;
                     // round up x and y to the nearest stepsize
-                    x_upper = Math.ceil(x / prescan_factor) * prescan_factor;
-                    y_upper = Math.ceil(y / prescan_factor) * prescan_factor;
+                    x_upper = Math.ceil((x+0.1) / prescan_factor) * prescan_factor;
+                    y_upper = Math.ceil((y+0.1) / prescan_factor) * prescan_factor;
 
                     // find the 4 points in the pointcloud that are closest to the target point
                     cornerpoints = self.PointCloud.filter(e => (e.x === x_lower && e.y === y_lower) || (e.x === x_lower && e.y === y_upper) || (e.x === x_upper && e.y === y_lower) || (e.x === x_upper && e.y === y_upper));
