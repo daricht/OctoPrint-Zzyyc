@@ -44,7 +44,7 @@ $(function () {
 
         self.probe = async function () {
             self.debuggingLog("##probe");
-
+            self.resetStartingValues();
             // Validate input values
             self.isCalculating(true);
             const maxZ = parseInt(self.input_max_z());
@@ -92,7 +92,8 @@ $(function () {
                         return;
                     }
                     if (cornerpoints.length < 4) {
-                        for (i = 0; i < 4 - cornerpoints.length; i++) {
+                        // for (i = 0; i < 4 - cornerpoints.length; i++) {
+                        while (cornerpoints.length < 4) {
                             cornerpoints.push({ x: 0, y: 0, z: 0 });
                         }
                     }
