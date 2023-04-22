@@ -19,7 +19,10 @@ $(function () {
         self.input_tolerance = ko.observable("0.08"); // tolerance for reaching the target position
         self.input_logging = ko.observable("false"); // if true, the plugin will log all the messages to the console
         //    <input type="text" id="prescan_factor" name="prescan_factor" data-bind="value: input_prescan_factor, disable: isCalculating" title="factor between the fine (final) and coarse prescan grid density.">
-        self.input_prescan_factor = ko.observable("10");
+        self.input_prescan_factor = ko.observable("2");
+
+        self.input_z_deviation = ko.observable("0.5"); // acceptible deviation between points around a target
+        self.input_z_deviation_from_zero = ko.observable("0.5"); // acceptable deviation of the cornerpoints and zero
 
         self.current_x = -1;
         self.current_y = -1;
@@ -32,7 +35,7 @@ $(function () {
         self.PointCloud = []; //pointcloud variable to store the points after each probe hit
 
         self.moveOngoing = false; // this is set to true when a move Gcode is sent to the printer and set to false after each M114 response that is captured
-        self.moveTime =parseInt(self.input_wait_time())*1000; // this is the time in seconds that the printer has to respond to a M114 command after a move Gcode was sent
+        self.moveTime = parseInt(self.input_wait_time()) * 1000; // this is the time in seconds that the printer has to respond to a M114 command after a move Gcode was sent
         self.checkPositionInterval = 0; //the interval is saved here so it can be stopped later
 
         self.lastCounterSent = 0;
@@ -41,7 +44,7 @@ $(function () {
 
         self.probe = async function () {
             self.debuggingLog("##probe");
-            
+
             // Validate input values
             self.isCalculating(true);
             const maxZ = parseInt(self.input_max_z());
@@ -51,33 +54,74 @@ $(function () {
                 return;
             }
 
-            await self.gridLoop(parseInt(self.input_size_x()), parseInt(self.input_size_y()), parseInt(self.input_stepsize_x()), parseInt(self.input_stepsize_y()), maxZ);
+            //prescan grid
+            await self.gridLoop(parseInt(self.input_size_x()), parseInt(self.input_size_y()), parseInt(self.input_stepsize_x()) * parseInt(self.input_prescan_factor()), parseInt(self.input_stepsize_y()) * parseInt(self.input_prescan_factor()), maxZ);
+
+            //fine grid
+            await self.gridLoop(parseInt(self.input_size_x()), parseInt(self.input_size_y()), parseInt(self.input_stepsize_x()), parseInt(self.input_stepsize_y()), maxZ, true);
 
             self.downloadPointCloud(self.PointCloud);
             self.isCalculating(false);
         }
 
-        self.gridLoop = async function (size_x, size_y, stepsize_x, stepsize_y, maxZ) {
-                        // Loop over the grid
-                        for (let y = 0; y <= size_y; y += stepsize_y) {
-                            for (let x = 0; x <= size_x; x += stepsize_x) {
-                                // if self.input_size_x and y are 177 and stepsize_x and y are 5 then the loop will go from 0 to 175
-                                // Move to next position
-                                await self.moveOnGrid(x, y);
-            
-                                // Do probe
-                                nextCommand = `G38.3 Z-${5 * parseInt(self.input_lift_z())} F${parseInt(self.input_feedrate_probe) + parseInt(self.lastCounterSent)}`
-                                self.lastCounterSent++;
-                                var last_hit = await self.setAndSendGcode(nextCommand);
-                                self.last_z_height = last_hit.z;
-                                self.PointCloud.push(last_hit);
-                            }
-            
-                            // Move to next line
-                            self.setAndSendGcode(`G0 Z${maxZ}`);
-                            await self.setAndSendGcode(`G38.3 X0 Y${y + parseInt(self.input_stepsize_y())}`);
+
+
+        self.gridLoop = async function (size_x, size_y, stepsize_x, stepsize_y, maxZ, finescan = false) {
+            // Loop over the grid
+            for (let y = 0; y <= size_y; y += stepsize_y) {
+                for (let x = 0; x <= size_x; x += stepsize_x) {
+
+                    if (finescan=true){// if pointcloud contains a point with the same x and y coordinates then skip this point
+                    if (self.PointCloud.some(e => e.x === x && e.y === y)) {
+                        // skip this point
+                        continue;
+                    }
+                    // round down x and y to the nearest stepsize
+                    x_lower = Math.floor(x / stepsize_x) * stepsize_x;
+                    y_lower = Math.floor(y / stepsize_y) * stepsize_y;
+                    // round up x and y to the nearest stepsize
+                    x_upper = Math.ceil(x / stepsize_x) * stepsize_x;
+                    y_upper = Math.ceil(y / stepsize_y) * stepsize_y;
+
+                    // find the 4 points in the pointcloud that are closest to the target point
+                    cornerpoints = self.PointCloud.filter(e => (e.x === x_lower && e.y === y_lower) || (e.x === x_lower && e.y === y_upper) || (e.x === x_upper && e.y === y_lower) || (e.x === x_upper && e.y === y_upper));
+                    // if there are less than 4 points in the pointcloud then make the missing points z height = 0
+                    if (cornerpoints.length > 4) {
+                        //throw error
+                        alert("Error: more than 4 points found in the pointcloud");
+                        return;
+                    }
+                    if (cornerpoints.length < 4) {
+                        for (i = 0; i < 4 - cornerpoints.length; i++) {
+                            cornerpoints.push({ x: 0, y: 0, z: 0 });
                         }
                     }
+                    //compare z heights of the 4 points. if they are all within 'z-deviation' then skip this point
+                    //if (point1.z - point2.z < self.input_z_deviation() && point1.z - point3.z < self.input_z_deviation() && point1.z - point4.z < self.input_z_deviation() && Math.abs(point1.z)<self.input_z_deviation_from_zero() ) {
+                    if (Math.abs(cornerpoints[0].z - cornerpoints[1].z) < self.input_z_deviation() && Math.abs(cornerpoints[0].z - cornerpoints[2].z) < self.input_z_deviation() && Math.abs(cornerpoints[0].z - cornerpoints[3].z) < self.input_z_deviation() && Math.abs(cornerpoints[0].z) < self.input_z_deviation_from_zero()) {
+                    // skip this point
+                        continue;
+                    }}
+
+                    await self.moveOnGrid(x, y);
+                    // Do probe
+                    this.probe();
+                }
+
+                // Move to next line
+                self.setAndSendGcode(`G0 Z${maxZ}`);
+                await self.setAndSendGcode(`G38.3 X0 Y${y + parseInt(self.input_stepsize_y())}`);
+            }
+        }
+
+        probe = async function () {
+            // Do probe
+            nextCommand = `G38.3 Z-${5 * parseInt(self.input_lift_z())} F${parseInt(self.input_feedrate_probe) + parseInt(self.lastCounterSent)}`
+            self.lastCounterSent++;
+            var last_hit = await self.setAndSendGcode(nextCommand);
+            self.last_z_height = last_hit.z;
+            self.PointCloud.push(last_hit);
+        }
 
         self.moveOnGrid = async function (x, y) {
             self.debuggingLog("##moveOnGrid");
@@ -112,24 +156,24 @@ $(function () {
             self.terminal.sendCommand();
             self.terminal.command("M114");
             self.terminal.sendCommand();
-        
+
             function checkResponse(resolve, reject) {
                 self.debuggingLog("##checkResponse")
                 const output = self.terminal.displayedLines();
                 let originalLineIndex = -1;
-        
+
                 for (let i = output.length - 1; i >= 0; i--) {
                     if (output[i].line.includes(code)) { //find original command
                         originalLineIndex = i;
                         break;
                     }
                 }
-        
+
                 if (originalLineIndex === -1) { //if not found, wait and try again
                     self.debuggingLog("originalLineIndex === -1 -> command was not found in the terminal output, will wait and try again");
                     return;
                 }
-        
+
                 let okReceivedLineIndex = -1;
                 for (let i = originalLineIndex; i < output.length; i++) { //find ok response to original command
                     if (output[i].line.includes("Recv: ok")) {
@@ -138,35 +182,35 @@ $(function () {
                         break;
                     }
                 }
-        
+
                 for (let i = originalLineIndex; i < output.length; i++) { //find Coordinates-Response to original command
                     if (output[i].line.includes("Recv: X:") || output[i].line.includes("Recv: ok X:")) {
                         self.debuggingLog("Coordinates-Response LineIndex: " + i);
                         const x = parseFloat(output[i].line.match(/X:(-?\d+\.\d+)/)[1]);
                         const y = parseFloat(output[i].line.match(/Y:(-?\d+\.\d+)/)[1]);
                         const z = parseFloat(output[i].line.match(/Z:(-?\d+\.\d+)/)[1]);
-                        if (z==2){
+                        if (z == 2) {
                             self.debuggingLog("z==2")
                         }
                         resolve({ x, y, z });
                         return;
                     }
                 }
-        
-                if (okReceivedLineIndex === -1) { 
+
+                if (okReceivedLineIndex === -1) {
                     self.debuggingLog("okReceivedLineIndex === -1 -> ok was not received, will wait and try again");
                     return;
                 }
-        
+
                 self.terminal.command("M114");
                 self.terminal.sendCommand();
             }
-        
+
             return new Promise((resolve, reject) => {
                 const intervalId = setInterval(() => {
                     checkResponse(resolve, reject);
                 }, 100);
-        
+
                 setTimeout(() => {
                     clearInterval(intervalId);
                     reject(new Error("Timeout"));
@@ -188,7 +232,7 @@ $(function () {
             self.setAndSendGcode("G91 ;relative Positioning");
             self.setAndSendGcode("G0 Z1");
             self.setAndSendGcode("G90 ;absolute Positioning");
-            self.setAndSendGcode("G38.3 X0 Y0");            
+            self.setAndSendGcode("G38.3 X0 Y0");
         }
 
         self.moveUp = function () {
@@ -208,7 +252,7 @@ $(function () {
         }
 
         self.debuggingLog = function (msg) {
-            if (Boolean(self.input_logging())==true){
+            if (Boolean(self.input_logging()) == true) {
                 console.log(msg);
             }
         }
