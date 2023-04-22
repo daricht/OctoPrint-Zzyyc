@@ -71,7 +71,7 @@ $(function () {
             for (let y = 0; y <= size_y; y += stepsize_y) {
                 for (let x = 0; x <= size_x; x += stepsize_x) {
 
-                    if (finescan=true){// if pointcloud contains a point with the same x and y coordinates then skip this point
+                    if (finescan==true){// if pointcloud contains a point with the same x and y coordinates then skip this point
                     if (self.PointCloud.some(e => e.x === x && e.y === y)) {
                         // skip this point
                         continue;
@@ -105,7 +105,7 @@ $(function () {
 
                     await self.moveOnGrid(x, y);
                     // Do probe
-                    this.probe();
+                    this.probing();
                 }
 
                 // Move to next line
@@ -114,7 +114,7 @@ $(function () {
             }
         }
 
-        probe = async function () {
+        probing = async function () {
             // Do probe
             nextCommand = `G38.3 Z-${5 * parseInt(self.input_lift_z())} F${parseInt(self.input_feedrate_probe) + parseInt(self.lastCounterSent)}`
             self.lastCounterSent++;
