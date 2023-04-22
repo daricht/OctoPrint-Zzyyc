@@ -106,7 +106,11 @@ $(function () {
 
                     await self.moveOnGrid(x, y);
                     // Do probe
-                    self.probing();
+                    nextCommand = `G38.3 Z-${5 * parseInt(self.input_lift_z())} F${parseInt(self.input_feedrate_probe) + parseInt(self.lastCounterSent)}`
+                    self.lastCounterSent++;
+                    var last_hit = await self.setAndSendGcode(nextCommand);
+                    self.last_z_height = last_hit.z;
+                    self.PointCloud.push(last_hit);
                 }
 
                 // Move to next line
@@ -117,11 +121,7 @@ $(function () {
 
         self.probing = async function () {
             // Do probe
-            nextCommand = `G38.3 Z-${5 * parseInt(self.input_lift_z())} F${parseInt(self.input_feedrate_probe) + parseInt(self.lastCounterSent)}`
-            self.lastCounterSent++;
-            var last_hit = await self.setAndSendGcode(nextCommand);
-            self.last_z_height = last_hit.z;
-            self.PointCloud.push(last_hit);
+
         }
 
         self.moveOnGrid = async function (x, y) {
