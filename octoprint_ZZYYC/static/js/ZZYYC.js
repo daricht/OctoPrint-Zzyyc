@@ -119,11 +119,6 @@ $(function () {
             }
         }
 
-        self.probing = async function () {
-            // Do probe
-
-        }
-
         self.moveOnGrid = async function (x, y) {
             self.debuggingLog("##moveOnGrid");
             // Move to next position
