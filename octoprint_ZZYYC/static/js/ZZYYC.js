@@ -105,7 +105,7 @@ $(function () {
 
                     await self.moveOnGrid(x, y);
                     // Do probe
-                    this.probing();
+                    self.probing();
                 }
 
                 // Move to next line
@@ -114,7 +114,7 @@ $(function () {
             }
         }
 
-        probing = async function () {
+        self.probing = async function () {
             // Do probe
             nextCommand = `G38.3 Z-${5 * parseInt(self.input_lift_z())} F${parseInt(self.input_feedrate_probe) + parseInt(self.lastCounterSent)}`
             self.lastCounterSent++;
