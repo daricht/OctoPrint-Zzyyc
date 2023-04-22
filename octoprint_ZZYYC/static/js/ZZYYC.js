@@ -111,7 +111,7 @@ $(function () {
 
                 // Move to next line
                 self.setAndSendGcode(`G0 Z${maxZ}`);
-                await self.setAndSendGcode(`G38.3 X0 Y${y + parseInt(self.input_stepsize_y())}`);
+                await self.setAndSendGcode(`G38.3 X0 Y${y + stepsize_y}`);
             }
         }
 
