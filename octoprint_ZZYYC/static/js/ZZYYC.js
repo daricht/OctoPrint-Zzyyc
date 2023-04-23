@@ -13,8 +13,8 @@ $(function () {
         self.input_stepsize_x = ko.observable("1");
         self.input_stepsize_y = ko.observable("1");
         self.input_lift_z = ko.observable("1");
-        self.input_feedrate_probe = 300; // feedrate for probing in mm/min but this is usually overwritten by the maschines so here its just used for counting
-        self.input_feedrate_move = 300;
+        self.input_feedrate_probe = 500; // feedrate for probing in mm/min but this is usually overwritten by the maschines so here its just used for counting
+        // self.input_feedrate_move = 300;
         self.input_wait_time = ko.observable("30"); // time to wait for a response from the printer in seconds
         self.input_tolerance = ko.observable("0.08"); // tolerance for reaching the target position
         self.input_logging = ko.observable("false"); // if true, the plugin will log all the messages to the console
