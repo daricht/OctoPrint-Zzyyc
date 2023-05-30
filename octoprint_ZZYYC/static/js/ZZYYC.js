@@ -48,14 +48,9 @@ $(function () {
             // Validate input values
             self.isCalculating(true);
             const SafeZ = parseInt(self.input_safe_z());
-            const liftZ = parseInt(self.input_lift_z());
-            if (SafeZ <= liftZ) {
-                alert("Max Z must be bigger than lift Z");
-                return;
-            }
 
             //prescan grid
-            await self.gridLoop(parseInt(self.input_size_x()), parseInt(self.input_size_y()), parseInt(self.input_stepsize_x()) * parseInt(self.input_prescan_factor()), parseInt(self.input_stepsize_y()) * parseInt(self.input_prescan_factor()), SafeZ ,parseInt(self.input_prescan_factor()));
+            await self.gridLoop(parseInt(self.input_size_x()), parseInt(self.input_size_y()), parseInt(self.input_stepsize_x()) * parseInt(self.input_prescan_factor()), parseInt(self.input_stepsize_y()) * parseInt(self.input_prescan_factor()), SafeZ, parseInt(self.input_prescan_factor()));
 
             //fine grid
             await self.gridLoop(parseInt(self.input_size_x()), parseInt(self.input_size_y()), parseInt(self.input_stepsize_x()), parseInt(self.input_stepsize_y()), SafeZ, parseInt(self.input_prescan_factor()), true);
@@ -64,45 +59,47 @@ $(function () {
             self.isCalculating(false);
         }
 
-
-
         self.gridLoop = async function (size_x, size_y, stepsize_x, stepsize_y, maxZ, prescan_factor, finescan = false) {
+            const roundToStepsize = (value) => Math.floor(value / prescan_factor) * prescan_factor;
+            const roundUpToStepsize = (value) => Math.ceil((value + 0.1) / prescan_factor) * prescan_factor;
+
             // Loop over the grid
             for (let y = 0; y <= size_y; y += stepsize_y) {
                 for (let x = 0; x <= size_x; x += stepsize_x) {
 
-                    if (finescan==true){// if pointcloud contains a point with the same x and y coordinates then skip this point
-                    if (self.PointCloud.some(e => e.x === x && e.y === y)) {
-                        // skip this point
-                        continue;
-                    }
-                    // round down x and y to the nearest stepsize
-                    x_lower = Math.floor(x / prescan_factor) * prescan_factor;
-                    y_lower = Math.floor(y / prescan_factor) * prescan_factor;
-                    // round up x and y to the nearest stepsize
-                    x_upper = Math.ceil((x+0.1) / prescan_factor) * prescan_factor;
-                    y_upper = Math.ceil((y+0.1) / prescan_factor) * prescan_factor;
+                    if (finescan == true) {// finescan is the second scan with the finer stepsize
+                        // if pointcloud contains a point with the same x and y coordinates then skip this point
+                        if (self.PointCloud.some(e => e.x === x && e.y === y)) {
+                            // skip this point
+                            continue;
+                        }
 
-                    // find the 4 points in the pointcloud that are closest to the target point
-                    cornerpoints = self.PointCloud.filter(e => (e.x === x_lower && e.y === y_lower) || (e.x === x_lower && e.y === y_upper) || (e.x === x_upper && e.y === y_lower) || (e.x === x_upper && e.y === y_upper));
-                    // if there are less than 4 points in the pointcloud then make the missing points z height = 0
-                    if (cornerpoints.length > 4) {
-                        //throw error
-                        alert("Error: more than 4 points found in the pointcloud");
-                        return;
-                    }
-                    if (cornerpoints.length < 4) {
-                        // for (i = 0; i < 4 - cornerpoints.length; i++) {
-                        while (cornerpoints.length < 4) {
-                            cornerpoints.push({ x: 0, y: 0, z: 0 });
+                        x_lower = roundToStepsize(x);
+                        y_lower = roundToStepsize(y);
+                        x_upper = roundUpToStepsize(x);
+                        y_upper = roundUpToStepsize(y);
+
+                        // find the 4 points in the pointcloud that are closest to the target point
+                        cornerpoints = self.PointCloud.filter(e => (e.x === x_lower && e.y === y_lower) || (e.x === x_lower && e.y === y_upper) || (e.x === x_upper && e.y === y_lower) || (e.x === x_upper && e.y === y_upper));
+                        // if there are less than 4 points in the pointcloud then make the missing points z height = 0
+                        if (cornerpoints.length > 4) {
+                            //throw error
+                            alert("Error: more than 4 points found in the pointcloud");
+                            return;
+                        }
+                        if (cornerpoints.length < 4) {
+                            // for (i = 0; i < 4 - cornerpoints.length; i++) {
+                            while (cornerpoints.length < 4) {
+                                cornerpoints.push({ x: 0, y: 0, z: 0 });
+                            }
+                        }
+                        //compare z heights of the 4 points. if they are all within 'z-deviation' then skip this point
+                        //if (point1.z - point2.z < self.input_z_deviation() && point1.z - point3.z < self.input_z_deviation() && point1.z - point4.z < self.input_z_deviation() && Math.abs(point1.z)<self.input_z_deviation_from_zero() ) {
+                        if (Math.abs(cornerpoints[0].z - cornerpoints[1].z) < self.input_z_deviation() && Math.abs(cornerpoints[0].z - cornerpoints[2].z) < self.input_z_deviation() && Math.abs(cornerpoints[0].z - cornerpoints[3].z) < self.input_z_deviation() && Math.abs(cornerpoints[0].z) < self.input_z_deviation_from_zero()) {
+                            // skip this point
+                            continue;
                         }
                     }
-                    //compare z heights of the 4 points. if they are all within 'z-deviation' then skip this point
-                    //if (point1.z - point2.z < self.input_z_deviation() && point1.z - point3.z < self.input_z_deviation() && point1.z - point4.z < self.input_z_deviation() && Math.abs(point1.z)<self.input_z_deviation_from_zero() ) {
-                    if (Math.abs(cornerpoints[0].z - cornerpoints[1].z) < self.input_z_deviation() && Math.abs(cornerpoints[0].z - cornerpoints[2].z) < self.input_z_deviation() && Math.abs(cornerpoints[0].z - cornerpoints[3].z) < self.input_z_deviation() && Math.abs(cornerpoints[0].z) < self.input_z_deviation_from_zero()) {
-                    // skip this point
-                        continue;
-                    }}
 
                     await self.moveOnGrid(x, y);
                     // Do probe
