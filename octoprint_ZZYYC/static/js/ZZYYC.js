@@ -9,7 +9,7 @@ $(function () {
 
         self.input_size_x = ko.observable("20");
         self.input_size_y = ko.observable("20");
-        self.input_max_z = ko.observable("15");
+        self.input_safe_z = ko.observable("15");
         self.input_stepsize_x = ko.observable("1");
         self.input_stepsize_y = ko.observable("1");
         self.input_lift_z = ko.observable("1");
@@ -21,8 +21,8 @@ $(function () {
         //    <input type="text" id="prescan_factor" name="prescan_factor" data-bind="value: input_prescan_factor, disable: isCalculating" title="factor between the fine (final) and coarse prescan grid density.">
         self.input_prescan_factor = ko.observable("5");
 
-        self.input_z_deviation = ko.observable("0.5"); // acceptible deviation between points around a target
-        self.input_z_deviation_from_zero = ko.observable("0.5"); // acceptable deviation of the cornerpoints and zero
+        self.input_z_deviation = ko.observable("0.7"); // acceptible deviation between points around a target
+        self.input_z_deviation_from_zero = ko.observable("1.4"); // acceptable deviation of the cornerpoints from zero
 
         self.current_x = -1;
         self.current_y = -1;
@@ -47,18 +47,18 @@ $(function () {
             self.resetStartingValues();
             // Validate input values
             self.isCalculating(true);
-            const maxZ = parseInt(self.input_max_z());
+            const SafeZ = parseInt(self.input_safe_z());
             const liftZ = parseInt(self.input_lift_z());
-            if (maxZ <= liftZ) {
+            if (SafeZ <= liftZ) {
                 alert("Max Z must be bigger than lift Z");
                 return;
             }
 
             //prescan grid
-            await self.gridLoop(parseInt(self.input_size_x()), parseInt(self.input_size_y()), parseInt(self.input_stepsize_x()) * parseInt(self.input_prescan_factor()), parseInt(self.input_stepsize_y()) * parseInt(self.input_prescan_factor()), maxZ ,parseInt(self.input_prescan_factor()));
+            await self.gridLoop(parseInt(self.input_size_x()), parseInt(self.input_size_y()), parseInt(self.input_stepsize_x()) * parseInt(self.input_prescan_factor()), parseInt(self.input_stepsize_y()) * parseInt(self.input_prescan_factor()), SafeZ ,parseInt(self.input_prescan_factor()));
 
             //fine grid
-            await self.gridLoop(parseInt(self.input_size_x()), parseInt(self.input_size_y()), parseInt(self.input_stepsize_x()), parseInt(self.input_stepsize_y()), maxZ, parseInt(self.input_prescan_factor()), true);
+            await self.gridLoop(parseInt(self.input_size_x()), parseInt(self.input_size_y()), parseInt(self.input_stepsize_x()), parseInt(self.input_stepsize_y()), SafeZ, parseInt(self.input_prescan_factor()), true);
 
             self.downloadPointCloud(self.PointCloud);
             self.isCalculating(false);
@@ -219,7 +219,7 @@ $(function () {
             self.suppressTempMsg();
             self.setAndSendGcode("G90 ;absolute Positioning");
             self.setAndSendGcode("G92 X0 Y0 Z0 ;set Zero");
-            self.setAndSendGcode("G38.3 Z-" + 2 * parseInt(self.input_max_z()));
+            self.setAndSendGcode("G38.3 Z-" + 2 * parseInt(self.input_safe_z()));
             self.setAndSendGcode("G92 Z0 ;set Zero");
         }
 
