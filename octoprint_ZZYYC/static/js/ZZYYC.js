@@ -28,8 +28,6 @@ $(function () {
         self.current_y = -1;
         self.current_z = -1;
 
-        self.target_x = -1;
-        self.target_y = -1;
         self.target_z = -1;
 
         self.PointCloud = []; //pointcloud variable to store the points after each probe hit
@@ -59,9 +57,67 @@ $(function () {
             self.isCalculating(false);
         }
 
-        self.gridLoop = async function (size_x, size_y, stepsize_x, stepsize_y, maxZ, prescan_factor, finescan = false) {
+        self.findTargetHeight = function (target_x,target_y) {
+
+            // find the target height by interpolating the z values of the cornerpoints with the distance to the target point
+
+            // find the z values of the cornerpoints
+            cornerpoints = this.findAndAugmentCornerPoints(target_x, target_y);
+
+            const z = [];
+            for (let i = 0; i < cornerpoints.length; i++) {
+                z[i] = cornerpoints[i].z;
+            }
+
+            min_x = Math.min(cornerpoints[0].x, cornerpoints[1].x, cornerpoints[2].x, cornerpoints[3].x);
+            min_y = Math.min(cornerpoints[0].y, cornerpoints[1].y, cornerpoints[2].y, cornerpoints[3].y);
+            max_x = Math.max(cornerpoints[0].x, cornerpoints[1].x, cornerpoints[2].x, cornerpoints[3].x);
+            max_y = Math.max(cornerpoints[0].y, cornerpoints[1].y, cornerpoints[2].y, cornerpoints[3].y);
+
+            size_x = max_x - min_x;
+            size_y = max_y - min_y;
+
+            normed_x = (target_x - min_x) / size_x;
+            normed_y = (target_y - min_y) / size_y;
+
+            // interpolate the z values with the distance to the target point using this approach: 𝑧=𝑓(𝑥,𝑦)=(1−𝑥)(1−𝑦)𝑣00+𝑥(1−𝑦)𝑣10+(1−𝑥)𝑦𝑣01+𝑥𝑦𝑣11
+            let target_z = (1 - normed_x) * (1 - normed_y) * z[0] + normed_x * (1 - normed_y) * z[1] + (1 - normed_x) * normed_y * z[2] + normed_x * normed_y * z[3];
+            // target_z += safety_margin;
+            return target_z;
+        }
+
+
+        self.findAndAugmentCornerPoints = function (x, y) {
             const roundToStepsize = (value) => Math.floor(value / prescan_factor) * prescan_factor;
             const roundUpToStepsize = (value) => Math.ceil((value + 0.1) / prescan_factor) * prescan_factor;
+
+            x_lower = roundToStepsize(x);
+            y_lower = roundToStepsize(y);
+            x_upper = roundUpToStepsize(x);
+            y_upper = roundUpToStepsize(y);
+
+            // find the 4 points in the pointcloud that are closest to the target point
+            cornerpoints = self.PointCloud.filter(e => (e.x === x_lower && e.y === y_lower) || (e.x === x_lower && e.y === y_upper) || (e.x === x_upper && e.y === y_lower) || (e.x === x_upper && e.y === y_upper));
+            // if there are less than 4 points in the pointcloud then make the missing points z height = 0
+            if (cornerpoints.length > 4) {
+                //throw error
+                alert("Error: more than 4 points found in the pointcloud. Length:" +  cornerpoints.length +" x:" + x + " y:" + y + " x_lower:" + x_lower + " y_lower:" + y_lower + " x_upper:" + x_upper + " y_upper:" + y_upper);
+                return;
+            }
+            if (cornerpoints.length < 4) {
+                // for (i = 0; i < 4 - cornerpoints.length; i++) {
+                while (cornerpoints.length < 4) {
+                    cornerpoints.push({ x: 0, y: 0, z: 0 });
+                }
+            }
+
+            return cornerpoints;
+        }
+
+
+
+        self.gridLoop = async function (size_x, size_y, stepsize_x, stepsize_y, maxZ, prescan_factor, finescan = false) {
+
 
             // Loop over the grid
             for (let y = 0; y <= size_y; y += stepsize_y) {
@@ -74,25 +130,8 @@ $(function () {
                             continue;
                         }
 
-                        x_lower = roundToStepsize(x);
-                        y_lower = roundToStepsize(y);
-                        x_upper = roundUpToStepsize(x);
-                        y_upper = roundUpToStepsize(y);
+                        cornerpoints = self.findAndAugmentCornerPoints(x, y, self.PointCloud);
 
-                        // find the 4 points in the pointcloud that are closest to the target point
-                        cornerpoints = self.PointCloud.filter(e => (e.x === x_lower && e.y === y_lower) || (e.x === x_lower && e.y === y_upper) || (e.x === x_upper && e.y === y_lower) || (e.x === x_upper && e.y === y_upper));
-                        // if there are less than 4 points in the pointcloud then make the missing points z height = 0
-                        if (cornerpoints.length > 4) {
-                            //throw error
-                            alert("Error: more than 4 points found in the pointcloud. Length:" +  cornerpoints.length +" x:" + x + " y:" + y + " x_lower:" + x_lower + " y_lower:" + y_lower + " x_upper:" + x_upper + " y_upper:" + y_upper);
-                            return;
-                        }
-                        if (cornerpoints.length < 4) {
-                            // for (i = 0; i < 4 - cornerpoints.length; i++) {
-                            while (cornerpoints.length < 4) {
-                                cornerpoints.push({ x: 0, y: 0, z: 0 });
-                            }
-                        }
                         //compare z heights of the 4 points. if they are all within 'z-deviation' then skip this point
                         //if (point1.z - point2.z < self.input_z_deviation() && point1.z - point3.z < self.input_z_deviation() && point1.z - point4.z < self.input_z_deviation() && Math.abs(point1.z)<self.input_z_deviation_from_zero() ) {
                         if (Math.abs(cornerpoints[0].z - cornerpoints[1].z) < self.input_z_deviation() && Math.abs(cornerpoints[0].z - cornerpoints[2].z) < self.input_z_deviation() && Math.abs(cornerpoints[0].z - cornerpoints[3].z) < self.input_z_deviation() && Math.abs(cornerpoints[0].z) < self.input_z_deviation_from_zero()) {
@@ -101,7 +140,7 @@ $(function () {
                         }
                     }
 
-                    await self.moveOnGrid(x, y);
+                    await self.moveOnGrid(x, y, finescan);
                     // Do probe
                     nextCommand = `G38.3 Z-${5 * parseInt(self.input_lift_z())} F${parseInt(self.input_feedrate_probe) + parseInt(self.lastCounterSent)}`
                     self.lastCounterSent++;
@@ -120,14 +159,22 @@ $(function () {
             }
         }
 
-        self.moveOnGrid = async function (x, y) {
+        self.moveOnGrid = async function (x, y, finescan = false) {
             self.debuggingLog("##moveOnGrid");
             // Move to next position
             tries = 0;
             while (self.current_x !== x || self.current_y !== y) {
+
+                //find z height of the target point
+                // target_z_from_last_z_hit = parseFloat(self.input_lift_z()) + self.last_z_height + tries * parseFloat(self.input_lift_z())
+               
+                target_z_from_coarse_scan = finescan ? self.findTargetHeight(x, y) : 0;
+
+                target_z_height = (max(self.last_z_height,target_z_from_coarse_scan))+ parseFloat(self.input_lift_z()) + tries * parseFloat(self.input_lift_z())
+
                 // self.lastCounterSent++;
-                self.debuggingLog(`Moving up to Z:${parseFloat(self.input_lift_z()) + self.last_z_height + tries * parseFloat(self.input_lift_z())}`);
-                await self.setAndSendGcode(`G0 Z${parseFloat(self.input_lift_z()) + self.last_z_height + tries * parseFloat(self.input_lift_z())}`);
+                self.debuggingLog(`Moving up to Z:${target_z_height}`);
+                await self.setAndSendGcode(`G0 Z${target_z_height}`);// this cant be G38.3 because it needs to move away even if the probe is triggered
                 newCommand = `G38.3 X${x} Y${y} F${parseInt(self.input_feedrate_probe) + parseInt(self.lastCounterSent)}`
                 self.lastCounterSent++;
                 var xy_return = await self.setAndSendGcode(newCommand);
@@ -147,8 +194,7 @@ $(function () {
 
         self.setAndSendGcode = function (code) {
             self.debuggingLog(`##setAndSendGcode: ${code}`);
-            // remove gcode comments including the single preceding space
-            code = code.replace(/;.*$/, "").replace(/\s$/, "");
+            code = code.replace(/;.*$/, "").replace(/\s$/, "");// remove gcode comments including the single preceding space
             self.terminal.command(code);
             self.terminal.sendCommand();
             self.terminal.command("M114");
