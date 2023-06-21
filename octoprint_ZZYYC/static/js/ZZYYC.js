@@ -135,7 +135,9 @@ $(function () {
                         //compare z heights of the 4 points. if they are all within 'z-deviation' then skip this point
                         //if (point1.z - point2.z < self.input_z_deviation() && point1.z - point3.z < self.input_z_deviation() && point1.z - point4.z < self.input_z_deviation() && Math.abs(point1.z)<self.input_z_deviation_from_zero() ) {
                         if (Math.abs(cornerpoints[0].z - cornerpoints[1].z) < self.input_z_deviation() && Math.abs(cornerpoints[0].z - cornerpoints[2].z) < self.input_z_deviation() && Math.abs(cornerpoints[0].z - cornerpoints[3].z) < self.input_z_deviation() && Math.abs(cornerpoints[0].z) < self.input_z_deviation_from_zero()) {
-                            // skip this point
+                                // skip this point
+                            self.debuggingLog("skipping point: " + x + " " + y + " because z deviation is too small");
+                            self.debuggingLog("cornerpoints: x0: "+cornerpoints[0].x +" y0: " + cornerpoints[0].y + " z0: " + cornerpoints[0].z + " x1: " + cornerpoints[1].x +" y1: " + cornerpoints[1].y + " z1: " + cornerpoints[1].z +" x2: " cornerpoints[2].x +" y2: " + cornerpoints[2].y + " z2: " + cornerpoints[2].z + " x3: " cornerpoints[3].x +" y3: " + cornerpoints[3].y + " z3: " + cornerpoints[3].z);
                             continue;
                         }
                     }
