@@ -170,7 +170,7 @@ $(function () {
                
                 target_z_from_coarse_scan = finescan ? self.findTargetHeight(x, y) : 0;
 
-                target_z_height = (max(self.last_z_height,target_z_from_coarse_scan))+ parseFloat(self.input_lift_z()) + tries * parseFloat(self.input_lift_z())
+                target_z_height = (Math.max(self.last_z_height,target_z_from_coarse_scan))+ parseFloat(self.input_lift_z()) + tries * parseFloat(self.input_lift_z())
 
                 // self.lastCounterSent++;
                 self.debuggingLog(`Moving up to Z:${target_z_height}`);
