@@ -84,7 +84,7 @@ $(function () {
                         // if there are less than 4 points in the pointcloud then make the missing points z height = 0
                         if (cornerpoints.length > 4) {
                             //throw error
-                            alert("Error: more than 4 points found in the pointcloud");
+                            alert("Error: more than 4 points found in the pointcloud. Length:" +  cornerpoints.length +" x:" + x + " y:" + y + " x_lower:" + x_lower + " y_lower:" + y_lower + " x_upper:" + x_upper + " y_upper:" + y_upper);
                             return;
                         }
                         if (cornerpoints.length < 4) {
@@ -107,7 +107,11 @@ $(function () {
                     self.lastCounterSent++;
                     var last_hit = await self.setAndSendGcode(nextCommand);
                     self.last_z_height = last_hit.z;
-                    self.PointCloud.push(last_hit);
+                    self.PointCloud.push({
+                        x: Math.round(last_hit.x),
+                        y: Math.round(last_hit.y),
+                        z: last_hit.z
+                      });
                 }
 
                 // Move to next line
