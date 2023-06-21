@@ -62,7 +62,7 @@ $(function () {
             // find the target height by interpolating the z values of the cornerpoints with the distance to the target point
 
             // find the z values of the cornerpoints
-            cornerpoints = this.findAndAugmentCornerPoints(target_x, target_y);
+            cornerpoints = self.findAndAugmentCornerPoints(target_x, target_y, parseInt(self.input_prescan_factor()));
 
             const z = [];
             for (let i = 0; i < cornerpoints.length; i++) {
@@ -87,7 +87,7 @@ $(function () {
         }
 
 
-        self.findAndAugmentCornerPoints = function (x, y) {
+        self.findAndAugmentCornerPoints = function (x, y, prescan_factor) {
             const roundToStepsize = (value) => Math.floor(value / prescan_factor) * prescan_factor;
             const roundUpToStepsize = (value) => Math.ceil((value + 0.1) / prescan_factor) * prescan_factor;
 
@@ -113,7 +113,7 @@ $(function () {
             return cornerpoints;
         }
 
-        self.gridLoop = async function (size_x, size_y, stepsize_x, stepsize_y, maxZ, prescan_factor, finescan = false) {
+        self.gridLoop = async function (size_x, size_y, stepsize_x, stepsize_y, maxZ, finescan = false) {
 
 
             // Loop over the grid
