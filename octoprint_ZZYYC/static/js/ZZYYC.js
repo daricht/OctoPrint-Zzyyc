@@ -48,10 +48,10 @@ $(function () {
             const SafeZ = parseInt(self.input_safe_z());
 
             //prescan grid
-            await self.gridLoop(parseInt(self.input_size_x()), parseInt(self.input_size_y()), parseInt(self.input_stepsize_x()) * parseInt(self.input_prescan_factor()), parseInt(self.input_stepsize_y()) * parseInt(self.input_prescan_factor()), SafeZ, parseInt(self.input_prescan_factor()));
+            await self.gridLoop(parseInt(self.input_size_x()), parseInt(self.input_size_y()), parseInt(self.input_stepsize_x()) * parseInt(self.input_prescan_factor()), parseInt(self.input_stepsize_y()) * parseInt(self.input_prescan_factor()), SafeZ);
 
             //fine grid
-            await self.gridLoop(parseInt(self.input_size_x()), parseInt(self.input_size_y()), parseInt(self.input_stepsize_x()), parseInt(self.input_stepsize_y()), SafeZ, parseInt(self.input_prescan_factor()), true);
+            await self.gridLoop(parseInt(self.input_size_x()), parseInt(self.input_size_y()), parseInt(self.input_stepsize_x()), parseInt(self.input_stepsize_y()), SafeZ, true);
 
             self.downloadPointCloud(self.PointCloud);
             self.isCalculating(false);
