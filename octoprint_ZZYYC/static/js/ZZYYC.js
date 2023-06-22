@@ -127,7 +127,7 @@ $(function () {
                             continue;
                         }
 
-                        cornerpoints = self.findAndAugmentCornerPoints(x, y, self.PointCloud);
+                        cornerpoints = self.findAndAugmentCornerPoints(x, y, parseInt(self.input_prescan_factor()));
 
                         //compare z heights of the 4 points. if they are all within 'z-deviation' then skip this point
                         //if (point1.z - point2.z < self.input_z_deviation() && point1.z - point3.z < self.input_z_deviation() && point1.z - point4.z < self.input_z_deviation() && Math.abs(point1.z)<self.input_z_deviation_from_zero() ) {
